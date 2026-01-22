@@ -236,3 +236,9 @@ Date logic computed client-side using `Date.now()`.
 - Use a dev proxy for seamless local fetches.
 - Normalize Canvas API responses before rendering.
 - Incremental testing saves time and avoids cascading issues.
+
+
+
+## Final Product
+
+![final product image](image.png)
