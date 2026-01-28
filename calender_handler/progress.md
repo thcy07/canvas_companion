@@ -1,5 +1,5 @@
 # 📌 Project Integration Summary
-
+Josh Argyle was here.
 Canvas API → Node/Express Backend → React (Vite) Frontend
 
 ---
