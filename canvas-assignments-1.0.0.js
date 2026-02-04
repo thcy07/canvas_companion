@@ -1,7 +1,7 @@
 // Run with: node canvas-assignments.js
 
 const CANVAS_URL = 'https://byui.instructure.com';
-const API_TOKEN = 'YOUR_API_TOKEN_HERE'; // <-- Replace with your actual API token
+const API_TOKEN = 'YOUR_API_TOKEN_HERE'; 
 
 async function getWeeklyAssignments() {
   try {

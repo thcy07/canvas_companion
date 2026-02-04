@@ -216,7 +216,7 @@ export default function App() {
 
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 800 }}>{x.title}</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#000" }}>{x.title}</div>
                   <div style={{ color: "#555", marginTop: 4 }}>{x.courseName}</div>
                 </div>
 
