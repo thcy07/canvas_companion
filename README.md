@@ -15,16 +15,34 @@ An AI-powered academic planning tool that syncs with Canvas to automatically imp
 
 ## Architecture
 
--React
--Expo
--Vite
+### Frontend
+-React with Vite 
+-UI:  CSS 
+
+### Backend
+-Node.js + Express
+
+### Database
+-PostgreSQL for Assignments, User streaks, Rewards
+-Firebase 
 
 ## Software Features
 
-- Streak
-- A.I Scans, Suggested Plan/ Priority Queue
+- Completion Streak per week
+- Rule-based AI
+- AI Scans, Suggested Plan/ Priority Queue
 - Auto Scheduled Assignments
 - Link to Canvas
+- Ability to view per day, week, month
+- Auto Flags: overlapping deadlines, high-stress weeks
+- Some sort of database
+- 15 min warnings
+
+Stretch Features:
+- allow other calendars, like personal Outlook/Google.
+- Have ML that will learn based on gathered data.
+- Browser Notifications API
+- Email or mobile push (Firebase Cloud Messaging)
 
 ## Team Communication
 Communication will be through group texts and git hub
