@@ -37,6 +37,7 @@ An AI-powered academic planning tool that syncs with Canvas to automatically imp
 - Auto Flags: overlapping deadlines, high-stress weeks
 - Some sort of database
 - 15 min warnings
+- Account Login that saves canvas token
 
 Stretch Features:
 - allow other calendars, like personal Outlook/Google.
