@@ -1,8 +1,8 @@
 // Run with: node canvas-assignments.js
 
 const CANVAS_URL = 'https://byui.instructure.com';
-const API_TOKEN = 'YOUR_API_TOKEN_HERE'; // <-- Replace with your actual API token
-
+const API_TOKEN = '10706~wJe73RRZxNP9WGEmweLfrMv2NftfBhZyGX82XHKELMmmD9w9efEJNWwyDE4c4tHQ'; // <-- Replace with your actual API token
+//const API_TOKEN = import.meta.env.API_KEY
 async function getWeeklyAssignments() {
   try {
     // Get today and 7 days from now

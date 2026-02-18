@@ -4,6 +4,63 @@
   padding: 2rem;
   text-align: center;
 }
+body {
+  background-color: white;
+}
+.navbar {
+  display: flex;
+  flex-direction: row;
+  margin: auto;
+  align-items: center;
+  
+  
+}
+.h1-weekly {
+  color: black;
+}
+.nav-links {
+  list-style: none;
+  justify-content: center;
+  width: 100%;
+  display: flex;
+  margin: auto;
+}
+button {
+  background-color: red;
+}
+.footer-links {
+  display: flex;
+  gap: 20%;
+  justify-content: center;
+  list-style: none;
+  
+}
+.footer-link {
+  font-size: small;
+}
+footer {
+  background-color: grey;
+}
+p {
+  color: black;
+}
+.nav-link {
+  border-style: solid;
+  padding: 30px;
+}
+.status {
+  border-style: solid;
+  padding: 30px;
+}
+.corner {
+  padding: 20px;
+  border-left: solid;
+  border-bottom: solid;
+  margin-bottom: 70px;
+  display: flex;
+}
+
+
 
 .logo {
   height: 6em;
