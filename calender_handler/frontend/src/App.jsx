@@ -1,4 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
+import "./App.css";
+
+function Navbar() {
+  return (
+    <nav className="navbar">
+      <ul className="nav-links">
+        <li className="nav-link"><a href="#home">Canvas Companion</a></li>
+        <li className="status">Welcome Back Name</li>
+        <li className="nav-link"><a  href="#log-in">Sign Out</a></li>
+      </ul>
+    </nav>
+  );
+}
 
 // --- helpers ---
 function dueStatus(dueAt) {
@@ -51,7 +64,7 @@ export default function App() {
   // UI controls
   const [query, setQuery] = useState("");
   const [sortMode, setSortMode] = useState("due"); // "due" | "course"
-
+  
   async function load() {
     try {
       setLoading(true);
@@ -68,7 +81,7 @@ export default function App() {
       if (!Array.isArray(data)) {
         throw new Error("Expected an array from /api/assignments");
       }
-
+      
       setItems(data);
     } catch (e) {
       setError(e.message || String(e));
@@ -133,37 +146,38 @@ export default function App() {
   }, [normalized, query, sortMode]);
 
   return (
-    <div style={{ maxWidth: 980, margin: "32px auto", padding: "0 16px", fontFamily: "system-ui" }}>
-      <header style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+    <div style={{ maxWidth: 980, margin: "32px auto", padding: "0 16px", fontFamily: "system-ui"}}>
+      <header style={{alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+        <Navbar /> 
         <div>
-          <h1 style={{ margin: 0 }}>Canvas To-Do (Clean View)</h1>
-          <p style={{ marginTop: 8, color: "#555" }}>
-            Data comes from <code>/api/assignments</code> (your backend on port 3000)
-          </p>
+          <h1 className="h1-weekly">Here are Your Prioritized Assignments</h1>
+          <h2 style={{ marginTop: 8, color: "#555" }}>
+            {/* Data comes from <code>/api/assignments</code> (your backend on port 3000) */}
+            You have about x hours and x minutes of work left this week.
+          </h2>
         </div>
 
+        
+      </header>
+
+      <section style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "18px 0" }}>
         <button
           onClick={load}
           disabled={loading}
           style={{
             padding: "10px 14px",
-            borderRadius: 10,
-            border: "1px solid #ccc",
-            background: loading ? "#f3f3f3" : "white",
+            borderRadius: 10,  
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
           {loading ? "Refreshing…" : "Refresh"}
         </button>
-      </header>
-
-      <section style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "18px 0" }}>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by assignment, course, or type…"
           style={{
-            flex: "1 1 320px",
+            flex: "1 1 220px",
             padding: "10px 12px",
             borderRadius: 10,
             border: "1px solid #ccc",
@@ -176,8 +190,7 @@ export default function App() {
           style={{
             padding: "10px 12px",
             borderRadius: 10,
-            border: "1px solid #ccc",
-            background: "white",
+            border: "1px solid #ccc"
           }}
         >
           <option value="due">Sort: Due date</option>
@@ -209,25 +222,29 @@ export default function App() {
               key={x.key}
               style={{
                 ...colors,
-                borderRadius: 14,
-                padding: 14,
+                borderRadius: 14
               }}
             >
 
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                 <div>
+                  <p>Assignment:{x.title}</p>
+                  <p>Course: {x.courseName}</p>
+                  <p><b>Due:</b> {formatDue(x.dueAt)}</p>
                   <div style={{ fontSize: 18, fontWeight: 800, color: "#000" }}>{x.title}</div>
                   <div style={{ color: "#555", marginTop: 4 }}>{x.courseName}</div>
                 </div>
+              
+                <div className="corner" style={{ textAlign: "right", color: "#555", fontSize: 13 }}>
+                  {/*<div><b>{x.type}</b></div>*/}
+                  {x.points !== null && <div>{x.points} XP | {" "}&nbsp;{" "}</div>}
+                  {/* This is where the Minutes Estimate Per Assignment will Go Below*/}
+                  <div> X Min</div> 
 
-                <div style={{ textAlign: "right", color: "#555", fontSize: 13 }}>
-                  <div><b>{x.type}</b></div>
-                  {x.points !== null && <div>{x.points} pts</div>}
                 </div>
               </div>
-
+              
               <div style={{ marginTop: 10, color: "#333" }}>
-                <div><b>Due:</b> {formatDue(x.dueAt)}</div>
 
                 {x.needsGradingCount !== null && (
                   <div style={{ marginTop: 4 }}>
@@ -244,7 +261,7 @@ export default function App() {
 
               <div style={{ marginTop: 12 }}>
                 {x.url ? (
-                  <a href={x.url} target="_blank" rel="noreferrer">
+                  <a className="canvas-link" href={x.url} target="_blank" rel="noreferrer">
                     Open in Canvas
                   </a>
                 ) : (
@@ -255,6 +272,15 @@ export default function App() {
           );
         })}
       </div>
+      <footer>
+        <p> 2026 Canvas Companion. All rights reserved.</p>
+        <ul className="footer-links">
+        <li className="footer-link"><a href="#home">Canvas Companion</a></li>
+        <li className="footer-link"><a href="">About</a></li>
+        <li className="footer-link"><a  href="#log-in">Sign Out</a></li>
+      </ul>
+      </footer>
     </div>
+    
   );
 }
