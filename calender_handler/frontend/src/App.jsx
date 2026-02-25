@@ -231,6 +231,8 @@ export default function App() {
                   <p>Assignment:{x.title}</p>
                   <p>Course: {x.courseName}</p>
                   <p><b>Due:</b> {formatDue(x.dueAt)}</p>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#000" }}>{x.title}</div>
+                  <div style={{ color: "#555", marginTop: 4 }}>{x.courseName}</div>
                 </div>
               
                 <div className="corner" style={{ textAlign: "right", color: "#555", fontSize: 13 }}>
