@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import Footer from "./Footer";
 
 // --- helpers ---
 function dueStatus(dueAt) {
@@ -133,7 +134,7 @@ export default function App() {
   }, [normalized, query, sortMode]);
 
   return (
-    <div style={{ maxWidth: 980, margin: "32px auto", padding: "0 16px", fontFamily: "system-ui" }}>
+    <div style={{ display: "flex", flexDirection: "column", margin: "0 auto"}}>
       <header style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
         <div>
           <h1 style={{ margin: 0 }}>Canvas To-Do (Clean View)</h1>
@@ -184,6 +185,21 @@ export default function App() {
           <option value="course">Sort: Course then due</option>
         </select>
       </section>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "auto auto", gap: 12, marginBottom: 20 }}>
+        <section style={{ backgroundColor: "blue", padding: 12, borderRadius: 10 }}>
+          <p>Monthly View</p>
+        </section>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, row: 2 }}>
+          <section style={{ backgroundColor: "red", padding: 12, borderRadius: 10 }}>
+            <h4 style={{ margin: 0 }}>Streak</h4>
+            <div style={{ borderRadius: 2, backgroundColor: "#ff00d0", height: 12, width: 100 }}></div>
+          </section>
+          <section style={{ backgroundColor: "yellow", padding: 12, borderRadius: 10 }}>
+            <p style={{ color: "#555" }}>AI</p>
+          </section>
+        </div>
+      </div>
 
       {error && (
         <div style={{ padding: 12, border: "1px solid #f99", background: "#fee", borderRadius: 10 }}>
@@ -255,6 +271,8 @@ export default function App() {
           );
         })}
       </div>
+      <Footer />
     </div>
   );
+  
 }
