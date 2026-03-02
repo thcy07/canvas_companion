@@ -1,6 +1,45 @@
 import { useEffect, useMemo, useState } from "react";
 import { applyMeta, buildFlagsMap, suggestTodayPlan } from "./ai";
+import Footer from "./Footer";
+import Streak from "./Streak";
+import MonthlyView from "./MonthView";
+import AI from "./ai";
+import "./App.css";
 
+// Reintroduced from the merge: a small overview panel containing
+// `MonthlyView`, `Streak`, and `AI`. Kept as a named component
+// so the file only has one `export default`.
+function Overview() {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, padding: "0 16px", marginBottom: 20 }}>
+      <section style={{ backgroundColor: "blue", padding: 12, borderRadius: 10 }}>
+        <MonthlyView />
+      </section>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <section style={{ backgroundColor: "red", padding: 12, borderRadius: 10 }}>
+          <Streak />
+        </section>
+        <section style={{ backgroundColor: "yellow", padding: 12, borderRadius: 10 }}>
+          <AI />
+        </section>
+      </div>
+    </div>
+  );
+}
+
+
+function Navbar() {
+  return (
+    <nav className="navbar">
+      <ul className="nav-links">
+        <li className="nav-link"><a href="#home">Canvas Companion</a></li>
+        <li className="status">Welcome Back Name</li>
+        <li className="nav-link"><a  href="#log-in">Sign Out</a></li>
+      </ul>
+    </nav>
+  );
+}
+    
 
 // --- helpers ---
 // These helper functions are PURE (no React state inside them).
@@ -98,14 +137,7 @@ export default function App() {
   const [query, setQuery] = useState(""); // search text
   const [sortMode, setSortMode] = useState("due"); // "due" | "course"
   const [showTA, setShowTA] = useState(false); // toggle to show/hide grading items
-
-  /**
-   * load()
-   * ------
-   * Fetch assignment data from backend.
-   * - Backend is responsible for calling Canvas API and returning JSON.
-   * - Frontend only consumes the array of raw objects.
-   */
+  
   async function load() {
     try {
       setLoading(true); // show loading state in UI
@@ -127,8 +159,7 @@ export default function App() {
       if (!Array.isArray(data)) {
         throw new Error("Expected an array from /api/assignments");
       }
-
-      // Store raw items in state (triggers useMemo recompute and UI render)
+      
       setItems(data);
     } catch (e) {
       // Store error message for UI display
@@ -262,41 +293,38 @@ const todayPlan = useMemo(() => {
   }, [normalized, query, sortMode, showTA]);
 
   return (
-    <div style={{ maxWidth: 980, margin: "32px auto", padding: "0 16px", fontFamily: "system-ui" }}>
-      {/* Header row: title + refresh button */}
-      <header style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+    <div style={{ maxWidth: 980, margin: "32px auto", padding: "0 16px", fontFamily: "system-ui"}}>
+      <header style={{alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+        <Navbar /> 
         <div>
-          <h1 style={{ margin: 0 }}>Canvas To-Do (Clean View)</h1>
-          <p style={{ marginTop: 8, color: "#555" }}>
-            Data comes from <code>/api/assignments</code> (your backend on port 3000)
-          </p>
+          <h1 className="h1-weekly">Here are Your Prioritized Assignments</h1>
+          <h2 style={{ marginTop: 8, color: "#555" }}>
+            {/* Data comes from <code>/api/assignments</code> (your backend on port 3000) */}
+            You have about x hours and x minutes of work left this week.
+          </h2>
         </div>
 
-        {/* Manual refresh: re-fetch backend data */}
+        
+      </header>
+
+      <section style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "18px 0" }}>
         <button
           onClick={load}
           disabled={loading}
           style={{
             padding: "10px 14px",
-            borderRadius: 10,
-            border: "1px solid #ccc",
-            background: loading ? "#f3f3f3" : "white",
+            borderRadius: 10,  
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
           {loading ? "Refreshing…" : "Refresh"}
         </button>
-      </header>
-
-      {/* Search + sort controls */}
-      <section style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "18px 0" }}>
-        {/* Search input filters visible list */}
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by assignment, course, or type…"
           style={{
-            flex: "1 1 320px",
+            flex: "1 1 220px",
             padding: "10px 12px",
             borderRadius: 10,
             border: "1px solid #ccc",
@@ -305,37 +333,30 @@ const todayPlan = useMemo(() => {
 
         {/* Sort dropdown controls sort mode */}
         <select
-        value={sortMode}
-        onChange={(e) => setSortMode(e.target.value)}
-        style={{
-          padding: "10px 12px",
-          borderRadius: 10,
-          border: "1px solid #c1baba",
-          background: "white",
-        }}
-      >
-      <option value="" disabled>
-        Sort by…
-      </option>
-      <option value="due">Due date</option>
-      <option value="course">Course then due</option>
-      </select>
-
-      {/* Toggle to show TA assignments (grading) */}
-      <button
-        onClick={() => setShowTA((s) => !s)}
-        title="Toggle display of grading (TA) items"
-        style={{
-          padding: "10px 12px",
-          borderRadius: 10,
-          border: "1px solid #c1baba",
-          background: showTA ? "#e6f7ff" : "white",
-          cursor: "pointer",
-        }}
-      >
-        TA Assingments
-      </button>
-
+          value={sortMode}
+          onChange={(e) => setSortMode(e.target.value)}
+          style={{
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid #ccc"
+          }}
+        >
+          <option value="due">Sort: Due date</option>
+          <option value="course">Sort: Course then due</option>
+        </select>
+        <button
+          onClick={() => setShowTA((s) => !s)}
+          title="Toggle display of grading (TA) items"
+          style={{
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid #ccc",
+            background: showTA ? "#e6f7ff" : "white",
+            cursor: "pointer",
+          }}
+        >
+          TA Assingments
+        </button>
       </section>
 
       {/* Error display */}
@@ -385,13 +406,15 @@ const todayPlan = useMemo(() => {
               key={x.key}
               style={{
                 ...colors,
-                borderRadius: 14,
-                padding: 14,
+                borderRadius: 14
               }}
             >
               {/* Top row: title/course on left, type/points on right */}
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                 <div>
+                  <p>Assignment:{x.title}</p>
+                  <p>Course: {x.courseName}</p>
+                  <p><b>Due:</b> {formatDue(x.dueAt)}</p>
                   <div style={{ fontSize: 18, fontWeight: 800, color: "#000" }}>{x.title}</div>
                   <div style={{ color: "#555", marginTop: 4 }}>{x.courseName}</div>
 
@@ -409,17 +432,17 @@ const todayPlan = useMemo(() => {
                     </div>
                   )}
                 </div>
+              
+                <div className="corner" style={{ textAlign: "right", color: "#555", fontSize: 13 }}>
+                  {/*<div><b>{x.type}</b></div>*/}
+                  {x.points !== null && <div>{x.points} XP | {" "}&nbsp;{" "}</div>}
+                  {/* This is where the Minutes Estimate Per Assignment will Go Below*/}
+                  <div> X Min</div> 
 
-                <div style={{ textAlign: "right", color: "#555", fontSize: 13 }}>
-                  <div><b>{x.type}</b></div>
-                  {x.points !== null && <div>{x.points} pts</div>}
                 </div>
               </div>
-
-              {/* Details section */}
+              
               <div style={{ marginTop: 10, color: "#333" }}>
-                {/* Due date display */}
-                <div><b>Due:</b> {formatDue(x.dueAt)}</div>
 
                 {/* Canvas "needs grading" field if present */}
                 {x.needsGradingCount !== null && (
@@ -439,8 +462,7 @@ const todayPlan = useMemo(() => {
               {/* Link section */}
               <div style={{ marginTop: 12 }}>
                 {x.url ? (
-                  // Open assignment page in Canvas
-                  <a href={x.url} target="_blank" rel="noreferrer">
+                  <a className="canvas-link" href={x.url} target="_blank" rel="noreferrer">
                     Open in Canvas
                   </a>
                 ) : (
@@ -452,6 +474,15 @@ const todayPlan = useMemo(() => {
           );
         })}
       </div>
+      <footer>
+        <p> 2026 Canvas Companion. All rights reserved.</p>
+        <ul className="footer-links">
+        <li className="footer-link"><a href="#home">Canvas Companion</a></li>
+        <li className="footer-link"><a href="">About</a></li>
+        <li className="footer-link"><a  href="#log-in">Sign Out</a></li>
+      </ul>
+      </footer>
     </div>
+    
   );
 }
