@@ -1,26 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
-import { applyMeta, buildFlagsMap, suggestTodayPlan } from "./ai";
+import { applyMeta, buildFlagsMap, suggestTodayPlan, AI } from "./ai";
 import Footer from "./Footer";
 import Streak from "./Streak";
 import MonthlyView from "./MonthView";
-import AI from "./ai";
 import "./App.css";
 
 // Reintroduced from the merge: a small overview panel containing
 // `MonthlyView`, `Streak`, and `AI`. Kept as a named component
 // so the file only has one `export default`.
-function Overview() {
+function Overview({ todayPlan, flagsById }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, padding: "0 16px", marginBottom: 20 }}>
-      <section style={{ backgroundColor: "blue", padding: 12, borderRadius: 10 }}>
+      <section style={{ backgroundColor: "#0b63ff", padding: 12, borderRadius: 10 }}>
         <MonthlyView />
       </section>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <section style={{ backgroundColor: "red", padding: 12, borderRadius: 10 }}>
+        <section style={{ backgroundColor: "#ff6b6b", padding: 12, borderRadius: 10 }}>
           <Streak />
         </section>
-        <section style={{ backgroundColor: "yellow", padding: 12, borderRadius: 10 }}>
-          <AI />
+        <section style={{ backgroundColor: "#ffd54f", padding: 12, borderRadius: 10 }}>
+          <AI todayPlan={todayPlan} flagsById={flagsById} />
         </section>
       </div>
     </div>
@@ -144,7 +143,7 @@ export default function App() {
       setError(""); // clear old error
 
       // This hits Vite (5173) -> proxy -> backend (3000)
-      const res = await fetch("/api/assignments");
+      const res = await fetch("/api/assignments?days=30");
 
       // If backend returns non-200, show useful debugging info
       if (!res.ok) {
@@ -186,6 +185,7 @@ export default function App() {
   const normalized = useMemo(() => {
     return items.map((it) => {
       const a = it.assignment || {}; // Canvas sometimes nests assignment details under it.assignment
+      const dueAt = a.due_at || it.due_at || (it.submission && it.submission.due_at) || null;
 
       return {
         // Unique key for React list rendering.
@@ -205,7 +205,7 @@ export default function App() {
 
         // Assignment info
         title: safeText(a.name, "Untitled"),
-        dueAt: a.due_at || null,
+        dueAt: dueAt,
         points: typeof a.points_possible === "number" ? a.points_possible : null,
 
         // Link to the assignment in Canvas
@@ -293,19 +293,20 @@ const todayPlan = useMemo(() => {
   }, [normalized, query, sortMode, showTA]);
 
   return (
-    <div style={{ maxWidth: 980, margin: "32px auto", padding: "0 16px", fontFamily: "system-ui"}}>
-      <header style={{alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-        <Navbar /> 
-        <div>
-          <h1 className="h1-weekly">Here are Your Prioritized Assignments</h1>
-          <h2 style={{ marginTop: 8, color: "#555" }}>
-            {/* Data comes from <code>/api/assignments</code> (your backend on port 3000) */}
-            You have about x hours and x minutes of work left this week.
-          </h2>
-        </div>
-
-        
+    <div style={{ width: "100%", padding: "32px 16px", fontFamily: "system-ui" }}>
+      <header style={{ width: "100%" }}>
+        <Navbar />
       </header>
+
+      <div style={{ padding: "12px 0", width: "100%" }}>
+        <h1 className="h1-weekly">Here are Your Prioritized Assignments</h1>
+        <h2 style={{ marginTop: 8, color: "#555" }}>
+          You have about x hours and x minutes of work left this week.
+        </h2>
+      </div>
+
+      {/* Overview panel (calendar, streak, AI) */}
+      <Overview todayPlan={todayPlan} flagsById={flagsById} />
 
       <section style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "18px 0" }}>
         <button
