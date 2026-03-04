@@ -1,21 +1,24 @@
-import React, { Component } from "react";
-import { createUseStyles } from "react-jss";
-
-const useStyles = createUseStyles({
-  footer: {
-    padding: "1rem",
-    textAlign: "center",
-    backgroundColor: "#f0f0f0",
-    borderTop: "1px solid #ccc",
-  },
-});
+// frontend/src/Footer.jsx
 
 export default function Footer() {
-  const classes = useStyles();
   return (
-    <footer className={classes.footer}>
-      <h5>Need help getting your calendar set up? Check out the <a href="https://example.com/help">help guide</a>.</h5>
+    <footer
+      style={{
+        padding: "1rem",
+        textAlign: "center",
+        backgroundColor: "#f0f0f0",
+        borderTop: "1px solid #ccc",
+        marginTop: "40px",
+        color: "#111",
+      }}
+    >
+      <h5 style={{ margin: 0 }}>
+        Need help getting your calendar set up? Check out the{" "}
+        <a href="https://example.com/help" target="_blank" rel="noreferrer">
+          help guide
+        </a>
+        .
+      </h5>
     </footer>
-    );
+  );
 }
-

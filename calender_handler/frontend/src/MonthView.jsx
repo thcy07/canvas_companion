@@ -54,7 +54,7 @@ export default function MonthlyView() {
       setLoading(true);
       setError("");
 
-      const res = await fetch("/api/assignments");
+      const res = await fetch("/api/assignments?days=30");
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`Backend error ${res.status}: ${text}`);
@@ -79,79 +79,16 @@ export default function MonthlyView() {
 
   // Convert the raw Canvas objects into a clean shape for UI
   const normalized = useMemo(() => {
-    // Placeholder assignments for visualization
-    const placeholders = [
-      {
-        key: "placeholder-1",
-        courseId: "1",
-        courseName: "Computer Science 101",
-        type: "assignment",
-        title: "Implement Binary Search Algorithm",
-        dueAt: new Date(currentDate.getFullYear(), currentDate.getMonth(), 5).toISOString(),
-        points: 50,
-        url: "#",
-        needsGradingCount: null,
-        hasSubmitted: false,
-      },
-      {
-        key: "placeholder-2",
-        courseId: "2",
-        courseName: "Calculus II",
-        type: "quiz",
-        title: "Derivatives and Integrals Quiz",
-        dueAt: new Date(currentDate.getFullYear(), currentDate.getMonth(), 8).toISOString(),
-        points: 25,
-        url: "#",
-        needsGradingCount: null,
-        hasSubmitted: true,
-      },
-      {
-        key: "placeholder-3",
-        courseId: "3",
-        courseName: "English Literature",
-        type: "essay",
-        title: "Analyze themes in Moby Dick",
-        dueAt: new Date(currentDate.getFullYear(), currentDate.getMonth(), 12).toISOString(),
-        points: 100,
-        url: "#",
-        needsGradingCount: null,
-        hasSubmitted: false,
-      },
-      {
-        key: "placeholder-4",
-        courseId: "1",
-        courseName: "Computer Science 101",
-        type: "project",
-        title: "Web Application Project",
-        dueAt: new Date(currentDate.getFullYear(), currentDate.getMonth(), 15).toISOString(),
-        points: 200,
-        url: "#",
-        needsGradingCount: 2,
-        hasSubmitted: true,
-      },
-      {
-        key: "placeholder-5",
-        courseId: "4",
-        courseName: "Physics",
-        type: "lab",
-        title: "Newton's Laws Experiment",
-        dueAt: new Date(currentDate.getFullYear(), currentDate.getMonth(), 20).toISOString(),
-        points: 75,
-        url: "#",
-        needsGradingCount: null,
-        hasSubmitted: false,
-      },
-    ];
-
     const apiItems = items.map((it) => {
       const a = it.assignment || {};
+      const dueAt = a.due_at || it.due_at || (it.submission && it.submission.due_at) || null;
       return {
         key: `${it.type || "item"}-${it.course_id || "x"}-${a.id || it.id || Math.random()}`,
         courseId: it.course_id,
         courseName: safeText(it.context_name, "Unknown course"),
         type: safeText(it.type, "unknown"),
         title: safeText(a.name, "Untitled"),
-        dueAt: a.due_at || null,
+        dueAt: dueAt,
         points: typeof a.points_possible === "number" ? a.points_possible : null,
         url: a.html_url || it.html_url || null,
         needsGradingCount:
@@ -160,8 +97,8 @@ export default function MonthlyView() {
       };
     });
 
-    // Combine placeholders with API data
-    return [...placeholders, ...apiItems];
+    // Only use API items (no placeholders)
+    return apiItems;
   }, [items, currentDate]);
 
   // Group assignments by date
@@ -170,8 +107,10 @@ export default function MonthlyView() {
     normalized.forEach((item) => {
       if (item.dueAt) {
         const dueDate = new Date(item.dueAt);
-        // Format as YYYY-MM-DD to ensure consistent date matching
-        const dateKey = dueDate.toISOString().split('T')[0];
+        // Use local date components (YYYY-MM-DD) to avoid UTC shifts
+        const dateKey = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(
+          dueDate.getDate()
+        ).padStart(2, '0')}`;
         if (!grouped[dateKey]) grouped[dateKey] = [];
         grouped[dateKey].push(item);
       }
@@ -225,12 +164,26 @@ export default function MonthlyView() {
             </div>
           ))}
           {emptyDays.map((_, i) => (
-            <div key={`empty-${i}`} style={{ minHeight: 120, border: "1px solid #eee", borderRadius: 8 }}></div>
+            <div
+              key={`empty-${i}`}
+              style={{
+                minHeight: 120,
+                border: "1px solid #eee",
+                borderRadius: 8,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "stretch",
+                padding: 8,
+                boxSizing: "border-box",
+              }}
+            ></div>
           ))}
           {days.map((day) => {
             // Format as YYYY-MM-DD to match the grouping key
             const dateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-            const dateStr = dateObj.toISOString().split('T')[0];
+            const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(
+              dateObj.getDate()
+            ).padStart(2, '0')}`;
             const dayAssignments = assignmentsByDate[dateStr] || [];
             return (
               <div
@@ -241,11 +194,18 @@ export default function MonthlyView() {
                   borderRadius: 8,
                   padding: 8,
                   overflow: "auto",
-                  backgroundColor: day === new Date().getDate() && currentDate.getMonth() === new Date().getMonth() ? "#f0f0f0" : "white",
+                  backgroundColor:
+                    day === new Date().getDate() && currentDate.getMonth() === new Date().getMonth()
+                      ? "#f0f0f0"
+                      : "white",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "stretch",
+                  boxSizing: "border-box",
                 }}
               >
-                <div style={{ fontWeight: "bold", marginBottom: 8, color: "#333" }}>{day}</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontWeight: "bold", marginBottom: 8, color: "#333", textAlign: "left" }}>{day}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
                   {dayAssignments.map((x) => {
                     const status = dueStatus(x.dueAt);
                     const colors = cardStyleFor(status);
@@ -258,6 +218,8 @@ export default function MonthlyView() {
                           padding: 6,
                           fontSize: 12,
                           cursor: "pointer",
+                          width: "100%",
+                          boxSizing: "border-box",
                         }}
                         title={x.title}
                       >
