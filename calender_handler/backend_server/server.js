@@ -44,10 +44,17 @@ app.get("/api/assignments", async (req, res) => {
     }
 
     // This endpoint returns assignments across courses that the user can access.
-    // You can tweak query params later.
-    const url =
-      `${baseUrl}/api/v1/users/self/todo` +
-      `?per_page=50`;
+    // Default to a 30-day window (configurable via `?days=` query or ASSIGNMENT_DAYS env var).
+    const queryDays = req.query.days ? parseInt(req.query.days, 10) : NaN;
+    const envDays = process.env.ASSIGNMENT_DAYS ? parseInt(process.env.ASSIGNMENT_DAYS, 10) : NaN;
+    const days = Number.isFinite(queryDays)
+      ? queryDays
+      : Number.isFinite(envDays)
+      ? envDays
+      : 30;
+
+    // Request a larger page size to ensure we retrieve enough items to filter.
+    const url = `${baseUrl}/api/v1/users/self/todo?per_page=100`;
 
     const response = await fetch(url, {
       headers: {
@@ -65,7 +72,37 @@ app.get("/api/assignments", async (req, res) => {
     }
 
     const data = await response.json();
-    res.json(data);
+
+    // Helper to extract a due date from several possible Canvas shapes.
+    const parseDue = (item) => {
+      if (!item) return null;
+      if (item.due_at) return new Date(item.due_at);
+      if (item.assignment && item.assignment.due_at)
+        return new Date(item.assignment.due_at);
+      if (item.submission && item.submission.due_at)
+        return new Date(item.submission.due_at);
+      return null;
+    };
+
+    // Filter items to the requested date window if possible.
+    const now = new Date();
+    const end = new Date(now);
+    end.setDate(end.getDate() + (Number.isFinite(days) ? days : 30));
+
+    let filtered = data;
+    if (Array.isArray(data)) {
+      filtered = data.filter((item) => {
+        const due = parseDue(item);
+        return due && due >= now && due <= end;
+      });
+    } else if (data && Array.isArray(data.items)) {
+      filtered = data.items.filter((item) => {
+        const due = parseDue(item);
+        return due && due >= now && due <= end;
+      });
+    }
+
+    res.json(filtered);
   } catch (err) {
     res.status(500).json({
       error: "Server error",
