@@ -275,9 +275,9 @@ export default function App() {
       <footer>
         <p> 2026 Canvas Companion. All rights reserved.</p>
         <ul className="footer-links">
-        <li className="footer-link"><a href="#home">Canvas Companion</a></li>
-        <li className="footer-link"><a href="">About</a></li>
-        <li className="footer-link"><a  href="#log-in">Sign Out</a></li>
+        <li className="footer-link"><a class ="footer-a" href="#home">Canvas Companion</a></li>
+        <li className="footer-link"><a class ="footer-a" href="">About</a></li>
+        <li className="footer-link"><a class ="footer-a" href="#log-in">Sign Out</a></li>
       </ul>
       </footer>
     </div>

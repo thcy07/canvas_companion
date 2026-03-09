@@ -5,14 +5,13 @@
   text-align: center;
 }
 body {
-  background-color: white;
+  background-color: #183059;
 }
 .navbar {
   display: flex;
   flex-direction: row;
   margin: auto;
   align-items: center;
-  
   
 }
 .h1-weekly {
@@ -38,8 +37,15 @@ button {
 .footer-link {
   font-size: small;
 }
+
+.footer-a {
+   
+}
+
 footer {
-  background-color: grey;
+  background-color: lightgray;
+  padding: 20px;
+  margin-top: 20px;
 }
 p {
   color: black;
