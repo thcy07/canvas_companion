@@ -62,7 +62,6 @@ This project required installing several tools and libraries across the backend 
   - What it is: Environment variable loader  
   - Why it was needed: Keep the Canvas API token private and prevent committing secrets to GitHub  
   - Used for: `CANVAS_TOKEN`, `CANVAS_BASE_URL`, `PORT`
-  `BASE_URL:https://byui.instructure.com/`
 
 - nodemon  
   - What it is: Development tool that auto-restarts the server on file changes  
