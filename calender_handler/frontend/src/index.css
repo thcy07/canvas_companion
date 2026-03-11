@@ -35,6 +35,16 @@ h1 {
   line-height: 1.1;
 }
 
+h3{
+  color: #535bf2;
+}
+select {
+  color: #000;
+  /* text color */
+  background-color: #fff;
+  /* dropdown background */
+}
+
 button {
   border-radius: 8px;
   border: 1px solid transparent;
@@ -44,6 +54,7 @@ button {
   font-family: inherit;
   background-color: #1a1a1a;
   cursor: pointer;
+  color: #000;    /* force black text on the buttons */
   transition: border-color 0.25s;
 }
 button:hover {
