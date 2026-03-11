@@ -1,12 +1,22 @@
+import { useEffect, useMemo, useState } from "react";
+import { Routes, Route, Link } from "react-router-dom";
+import APIKeyWalkthroughView from "./APIKeyWalkthroughView";
+import DayView from "./DayView";
 import Footer from "./Footer";
 import Streak from "./Streak";
 import MonthlyView from "./MonthView";
 import AI from "./AI";
-import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 export default function App() {
   return (
+    <>
+    // Routes for different views (home, walkthrough, day view, etc)
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/walkthrough" element={<APIKeyWalkthroughView />} />
+      <Route path="/day" element={<DayView />} />
+    </Routes>
     <div style={{ display: "flex", flexDirection: "column", margin: "0 auto" }}>
       <header style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, padding: "20px 16px" }}>
         <div>
@@ -30,15 +40,23 @@ export default function App() {
           </section>
         </div>
       </div>
+  </div>
+  </>
+  );
+}
 
 
 function Navbar() {
   return (
     <nav className="navbar">
       <ul className="nav-links">
-        <li className="nav-link"><a href="#home">Canvas Companion</a></li>
+        {/* <li className="nav-link"><a href="#home">Canvas Companion</a></li> */}
+      <Link to="/" className="nav-logo">Canvas Companion</Link>
+
         <li className="status">Welcome Back Name</li>
-        <li className="nav-link"><a  href="#log-in">Sign Out</a></li>
+        {/* <li className="nav-link"><a  href="#log-in">Sign Out</a></li> */}
+      <Link to="/log-in" className="nav-link">Sign Out</Link>
+
       </ul>
     </nav>
   );
