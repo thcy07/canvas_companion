@@ -15,11 +15,11 @@
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: #1A4367;
   text-decoration: inherit;
 }
 a:hover {
-  color: #535bf2;
+  color: #0b63ff;;
 }
 
 body {
@@ -30,13 +30,15 @@ body {
   min-height: 100vh;
 }
 
+
+
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
 }
 
 h3{
-  color: #535bf2;
+  color: #1A4367;
 }
 select {
   color: #000;
