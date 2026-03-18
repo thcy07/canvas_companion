@@ -4,6 +4,7 @@ import Footer from "./Footer";
 import Streak from "./Streak";
 import MonthlyView from "./MonthView";
 import "./App.css";
+import NotificationTester from "./notificationTester";
 
 // Reintroduced from the merge: a small overview panel containing
 // `MonthlyView`, `Streak`, and `AI`. Kept as a named component
@@ -20,6 +21,9 @@ function Overview({ todayPlan, flagsById }) {
         </section>
         <section style={{ backgroundColor: "#5C8001", padding: 12, borderRadius: 10 }}>
           <AI todayPlan={todayPlan} flagsById={flagsById} />
+        </section>
+        <section style={{ backgroundColor: "#f0f0f0", padding: 12, borderRadius: 10 }}>
+          <NotificationTester />
         </section>
       </div>
     </div>
