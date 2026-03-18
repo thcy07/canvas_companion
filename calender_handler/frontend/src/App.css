@@ -6,27 +6,51 @@
   text-align: left;
 }
 body {
-  background-color: white;
-}
-.navbar {
-  display: flex;
-  flex-direction: row;
-  width: 100%;
-  align-items: center;
-  padding: 0 1rem;
+  background-color: #7CB518;
+  
 }
 .h1-weekly {
-  color: black;
+  color: #F3DE2C;
 }
+
+nav {
+  display: flex;
+  flex-direction: row; 
+  justify-content: space-between; 
+  
+}
+.logoImage {
+  flex: 0;
+  max-width: 200px;
+  justify-content: center;
+  margin-left: 10%;
+  
+}
+
 .nav-links {
   list-style: none;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
+  display: flex; 
+}
+.nav-link {
+  border-style: solid;
+  border-width: 2px;
+  border-color: #5C8001;
+  padding: 25px;
+  margin: auto;
+  margin-right: 10px;
+  border-radius: 5px;
+  width: 150px;
+  
+  
+}
+
+.link {
+  font-size: 15px;
   display: flex;
+  justify-content: center;
 }
 button {
-  background-color: red;
+  background-color: #FB6107;
 }
 .footer-links {
   display: flex;
@@ -38,16 +62,20 @@ button {
 .footer-link {
   font-size: small;
 }
+
+.footer-a {
+   
+}
+
 footer {
-  background-color: grey;
+  background-color: #5C8001;
+  padding: 20px;
+  margin-top: 20px;
 }
 p {
   color: black;
 }
-.nav-link {
-  border-style: solid;
-  padding: 30px;
-}
+
 .status {
   border-style: solid;
   padding: 30px;
@@ -59,8 +87,6 @@ p {
   margin-bottom: 70px;
   display: flex;
 }
-
-
 
 .logo {
   height: 6em;
@@ -102,4 +128,18 @@ p {
 .card h2,
 .card .assignment-title {
   color: #000;
+}
+
+@media (max-width: 1300px) {
+  .nav-link {
+    padding: 5px;
+  }
+}
+@media (max-width: 1050px) {
+  .link {
+    font-size: 10px;
+  }
+  .nav-link {
+    width: 100px;
+  }
 }
