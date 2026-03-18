@@ -15,10 +15,10 @@ function Overview({ todayPlan, flagsById }) {
         <MonthlyView />
       </section>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <section style={{ backgroundColor: "#ff6b6b", padding: 12, borderRadius: 10 }}>
+        <section style={{ backgroundColor: "#FB6107", padding: 12, borderRadius: 10 }}>
           <Streak />
         </section>
-        <section style={{ backgroundColor: "#ffd54f", padding: 12, borderRadius: 10 }}>
+        <section style={{ backgroundColor: "#5C8001", padding: 12, borderRadius: 10 }}>
           <AI todayPlan={todayPlan} flagsById={flagsById} />
         </section>
       </div>
@@ -30,10 +30,12 @@ function Overview({ todayPlan, flagsById }) {
 function Navbar() {
   return (
     <nav className="navbar">
+        <img class="logoImage" src="images/Canvas_Companion_Logo.png" alt="Canvas Companion Logo" />
       <ul className="nav-links">
-        <li className="nav-link"><a href="#home">Canvas Companion</a></li>
-        <li className="status">Welcome Back Name</li>
-        <li className="nav-link"><a  href="#log-in">Sign Out</a></li>
+        <li className="nav-link"><a class="link" href="#home">Weekly Assignments</a></li>
+        <li className="nav-link"><a class="link" href="">Assignment Plan</a></li>
+        <li className="nav-link"><a class="link" href="">About</a></li>
+        <li className="nav-link"><a class="link" href="#log-in">Sign Out</a></li>
       </ul>
     </nav>
   );
@@ -82,14 +84,14 @@ function cardStyleFor(status) {
   // background + border per status
   switch (status) {
     case "red":
-      return { background: "#ffe5e5", border: "1px solid #ff9a9a" };
+      return { background: "#ffe5e5", border: "2px solid #5C8001" };
     case "yellow":
-      return { background: "#fff7d6", border: "1px solid #ffd36b" };
+      return { background: "#fff7d6", border: "2px solid #5C8001" };
     case "green":
-      return { background: "#e9ffe9", border: "1px solid #8fe08f" };
+      return { background: "#e9ffe9", border: "2px solid #5C8001" };
     default:
       // Includes "nodate" or any unexpected value
-      return { background: "#f7f7f7", border: "1px solid #ddd" };
+      return { background: "#f7f7f7", border: "1px solid #5C8001" };
   }
 }
 
@@ -300,7 +302,7 @@ const todayPlan = useMemo(() => {
 
       <div style={{ padding: "12px 0", width: "100%" }}>
         <h1 className="h1-weekly">Here are Your Prioritized Assignments</h1>
-        <h2 style={{ marginTop: 8, color: "#555" }}>
+        <h2 style={{ marginTop: 8, color: "black" }}>
           You have about x hours and x minutes of work left this week.
         </h2>
       </div>
