@@ -9,5 +9,5 @@ export default defineConfig(({ mode }) => ({
     },
   },
 define: {
-  __API_URL__: JSON.stringify(process.env.VITE_API_URL || ""),},
+  __API_URL__: JSON.stringify(process.env.VITE_API_URL),},
 }));

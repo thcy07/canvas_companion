@@ -3,6 +3,8 @@
 // The full setup flow is handled by Onboarding.tsx.
 
 import { useEffect, useState } from "react";
+const [canvasUrl, setCanvasUrl] = useState("");
+const [canvasToken, setCanvasToken] = useState("");
 declare const __API_URL__: string;
 
 export default function NotificationTester() {
@@ -39,10 +41,14 @@ export default function NotificationTester() {
         });
 
         // Re-send subscription to backend (upsert keeps it fresh)
-        await fetch(`${__API_URL__}/api/subscribe`, {
+        await fetch(`${__API_URL__}/api/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(pushSubscription),
+          body: JSON.stringify({
+            canvasUrl,
+            canvasToken,
+            pushSubscription,
+          }),
         });
 
         setStatus("active");
