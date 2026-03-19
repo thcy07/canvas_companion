@@ -151,7 +151,7 @@ export default function App() {
       setError(""); // clear old error
 
       // This hits Vite (5173) -> proxy -> backend (3000)
-      const res = await fetch("/api/assignments?days=30");
+      const res = await fetch(`${__API_URL__}/api/assignments?days=30`);
 
       // If backend returns non-200, show useful debugging info
       if (!res.ok) {

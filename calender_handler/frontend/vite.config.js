@@ -5,7 +5,14 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      "/api": "http://localhost:3000",
+      "/api": "http://localhost:3001", // local dev
     },
+  },
+  define: {
+    __API_URL__: JSON.stringify(
+      process.env.NODE_ENV === "production"
+        ? "https://canvascompanion-production.up.railway.app"
+        : ""
+    ),
   },
 });
