@@ -3,6 +3,7 @@
 // The full setup flow is handled by Onboarding.tsx.
 
 import { useEffect, useState } from "react";
+declare const __API_URL__: string;
 
 export default function NotificationTester() {
   const [status, setStatus] = useState<"active" | "inactive">("inactive");
@@ -23,7 +24,7 @@ export default function NotificationTester() {
 
       try {
         const registration = await navigator.serviceWorker.register("/sw.js");
-        const { publicKey } = await fetch("/api/vapid-public-key").then((r) => r.json());
+        const { publicKey } = await fetch(`${__API_URL__}/api/vapid-public-key`).then((r) => r.json());
 
         const pushSubscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
@@ -31,7 +32,7 @@ export default function NotificationTester() {
         });
 
         // Re-send subscription to backend (upsert keeps it fresh)
-        await fetch("/api/subscribe", {
+        await fetch(`${__API_URL__}/api/subscribe`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(pushSubscription),
