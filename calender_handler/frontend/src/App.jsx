@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { applyMeta, buildFlagsMap, suggestTodayPlan, AI } from "./ai";
+import { applyMeta, buildFlagsMap, suggestTodayPlan, AI } from "./ai,jsx";
 import Footer from "./Footer";
 import Streak from "./Streak";
 import MonthlyView from "./MonthView";
