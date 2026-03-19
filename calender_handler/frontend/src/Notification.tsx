@@ -3,12 +3,12 @@
 // The full setup flow is handled by Onboarding.tsx.
 
 import { useEffect, useState } from "react";
-const [canvasUrl, setCanvasUrl] = useState("");
-const [canvasToken, setCanvasToken] = useState("");
 declare const __API_URL__: string;
 
 export default function NotificationTester() {
   const [status, setStatus] = useState<"active" | "inactive">("inactive");
+  const [canvasUrl, setCanvasUrl] = useState(() => localStorage.getItem("canvasUrl") ?? "");
+  const [canvasToken, setCanvasToken] = useState(() => localStorage.getItem("canvasToken") ?? "");
 
   function urlBase64ToUint8Array(base64String: string) {
     const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
