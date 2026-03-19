@@ -17,8 +17,11 @@
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "mongodb": "^7.1.0",
+    "mongoose": "^9.3.1",
     "node-cron": "^4.2.1",
     "node-fetch": "^3.3.2",
+    "pnpm": "^10.32.1",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

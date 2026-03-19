@@ -4,7 +4,9 @@ import Footer from "./Footer";
 import Streak from "./Streak";
 import MonthlyView from "./MonthView";
 import "./App.css";
-import NotificationTester from "./notificationTester";
+import NotificationTester from "./Notification";
+import Onboarding from "./Onboarding";
+
 
 // Reintroduced from the merge: a small overview panel containing
 // `MonthlyView`, `Streak`, and `AI`. Kept as a named component
@@ -179,6 +181,14 @@ export default function App() {
   useEffect(() => {
     load();
   }, []);
+
+  const [setupComplete, setSetupComplete] = useState(
+  () => localStorage.getItem("setupComplete") === "true"
+);
+
+if (!setupComplete) {
+  return <Onboarding onComplete={() => setSetupComplete(true)} />;
+}
 
   /**
    * normalized

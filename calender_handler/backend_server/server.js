@@ -6,39 +6,65 @@ import dotenv from "dotenv";
 import cors from "cors";
 import webpush from "web-push";
 import cron from "node-cron";
+import mongoose from "mongoose";
+import crypto from "crypto";
 
 dotenv.config();
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-// Configure VAPID
+// ─── Encryption helpers (AES-256-GCM) ────────────────────────────────────────
+
+function encrypt(text) {
+  const iv = crypto.randomBytes(12);
+  const key = Buffer.from(process.env.ENCRYPTION_SECRET.padEnd(32).slice(0, 32));
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString("hex")}:${tag.toString("hex")}:${encrypted.toString("hex")}`;
+}
+
+function decrypt(data) {
+  const [ivHex, tagHex, encryptedHex] = data.split(":");
+  const iv = Buffer.from(ivHex, "hex");
+  const tag = Buffer.from(tagHex, "hex");
+  const encrypted = Buffer.from(encryptedHex, "hex");
+  const key = Buffer.from(process.env.ENCRYPTION_SECRET.padEnd(32).slice(0, 32));
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  return decipher.update(encrypted) + decipher.final("utf8");
+}
+
+// ─── MongoDB Schema ───────────────────────────────────────────────────────────
+
+const userSchema = new mongoose.Schema({
+  canvasUrl: { type: String, required: true },
+  encryptedToken: { type: String, required: true },
+  pushSubscription: { type: Object, required: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+const User = mongoose.model("User", userSchema);
+
+// ─── Configure VAPID ─────────────────────────────────────────────────────────
+
 webpush.setVapidDetails(
   process.env.VAPID_MAILTO,
   process.env.VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
 
-// In-memory subscription store (swap for a DB in production)
-const subscriptions = new Set();
-
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 app.get("/health", (req, res) => {
-  res.status(200).json({
+  res.json({
     ok: true,
     status: "healthy",
     uptimeSeconds: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
-  });
-});
-
-app.get("/debug/env", (req, res) => {
-  res.json({
-    hasApiToken: Boolean(process.env.API_TOKEN),
-    nodeEnv: process.env.NODE_ENV || "development",
   });
 });
 
@@ -47,21 +73,44 @@ app.get("/api/vapid-public-key", (req, res) => {
   res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
 });
 
-// Save push subscription from frontend
-app.post("/api/subscribe", (req, res) => {
-  const sub = req.body;
-  subscriptions.add(JSON.stringify(sub));
-  console.log("New subscription saved. Total:", subscriptions.size);
-  res.json({ ok: true });
-});
+// Register a user: save encrypted Canvas token + push subscription
+app.post("/api/register", async (req, res) => {
+  try {
+    const { canvasUrl, canvasToken, pushSubscription } = req.body;
 
-// Manual test reminder
-app.get("/api/test-reminder", (req, res) => {
-  res.json({
-    title: "Assignment Due Soon",
-    body: "Your Math assignment is due in 1 hour.",
-    url: "/",
-  });
+    if (!canvasUrl || !canvasToken || !pushSubscription) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const normalizedUrl = canvasUrl.replace(/\/$/, "");
+
+    // Verify the token works before saving
+    const testRes = await fetch(`${normalizedUrl}/api/v1/users/self`, {
+      headers: { Authorization: `Bearer ${canvasToken}` },
+    });
+
+    if (!testRes.ok) {
+      return res.status(401).json({ error: "Invalid Canvas URL or API token. Please check and try again." });
+    }
+
+    const encryptedToken = encrypt(canvasToken);
+
+    await User.findOneAndUpdate(
+      { "pushSubscription.endpoint": pushSubscription.endpoint },
+      {
+        canvasUrl: normalizedUrl,
+        encryptedToken,
+        pushSubscription,
+        updatedAt: new Date(),
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Register error:", err);
+    res.status(500).json({ error: "Server error", details: String(err) });
+  }
 });
 
 // Fetch assignments from Canvas
@@ -85,11 +134,7 @@ app.get("/api/assignments", async (req, res) => {
 
     if (!response.ok) {
       const text = await response.text();
-      return res.status(response.status).json({
-        error: "Canvas API request failed",
-        status: response.status,
-        details: text,
-      });
+      return res.status(response.status).json({ error: "Canvas API request failed", details: text });
     }
 
     const data = await response.json();
@@ -106,10 +151,8 @@ app.get("/api/assignments", async (req, res) => {
     const end = new Date(now);
     end.setDate(end.getDate() + days);
 
-    let filtered = Array.isArray(data)
+    const filtered = Array.isArray(data)
       ? data.filter((item) => { const due = parseDue(item); return due && due >= now && due <= end; })
-      : Array.isArray(data.items)
-      ? data.items.filter((item) => { const due = parseDue(item); return due && due >= now && due <= end; })
       : [];
 
     res.json(filtered);
@@ -120,12 +163,11 @@ app.get("/api/assignments", async (req, res) => {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function getDueSoonAssignments() {
-  const baseUrl = process.env.BASE_URL;
-  const token = process.env.API_TOKEN;
-  const response = await fetch(`${baseUrl}/api/v1/users/self/todo?per_page=100`, {
-    headers: { Authorization: `Bearer ${token}` },
+async function getDueSoonForUser(canvasUrl, canvasToken) {
+  const response = await fetch(`${canvasUrl}/api/v1/users/self/todo?per_page=100`, {
+    headers: { Authorization: `Bearer ${canvasToken}` },
   });
+  if (!response.ok) return [];
   const data = await response.json();
   const now = Date.now();
   const in24h = now + 24 * 60 * 60 * 1000;
@@ -138,62 +180,83 @@ async function getDueSoonAssignments() {
   });
 }
 
-// ─── Cron: every 15 minutes ───────────────────────────────────────────────────
+// ─── Cron helper ─────────────────────────────────────────────────────────────
 
-cron.schedule("*/15 * * * *", async () => {
-  console.log("[cron] Checking for due-soon assignments...");
+async function runCron() {
+  console.log("[cron] Checking due-soon assignments for all users...");
 
-  if (subscriptions.size === 0) {
-    console.log("[cron] No subscribers, skipping.");
-    return;
-  }
-
-  let dueSoon;
+  let users;
   try {
-    dueSoon = await getDueSoonAssignments();
+    users = await User.find({});
   } catch (err) {
-    console.error("[cron] Failed to fetch assignments:", err.message);
+    console.error("[cron] Failed to fetch users from DB:", err.message);
     return;
   }
 
-  if (!dueSoon.length) {
-    console.log("[cron] No assignments due within 24h.");
+  if (!users.length) {
+    console.log("[cron] No users registered yet.");
     return;
   }
 
-  console.log(`[cron] Found ${dueSoon.length} due-soon assignment(s). Notifying ${subscriptions.size} subscriber(s).`);
+  console.log(`[cron] Processing ${users.length} user(s)...`);
 
-  for (const subStr of subscriptions) {
-    const sub = JSON.parse(subStr);
-    for (const item of dueSoon) {
-      const title = item.assignment?.name || "Assignment due soon";
-      const dueAt = new Date(item.assignment?.due_at || item.due_at);
-      const hoursLeft = ((dueAt - Date.now()) / 3600000).toFixed(1);
+  for (const user of users) {
+    try {
+      const canvasToken = decrypt(user.encryptedToken);
+      const dueSoon = await getDueSoonForUser(user.canvasUrl, canvasToken);
 
-      try {
-        await webpush.sendNotification(
-          sub,
-          JSON.stringify({
-            title: `⏰ Due in ${hoursLeft}h: ${title}`,
-            body: `Course: ${item.context_name || "Unknown"}`,
-            url: item.assignment?.html_url || "/",
-          })
-        );
-      } catch (err) {
-        if (err.statusCode === 410) {
-          console.log("[cron] Removing expired subscription.");
-          subscriptions.delete(subStr);
-        } else {
-          console.error("[cron] Push failed:", err.message);
+      if (!dueSoon.length) continue;
+
+      for (const item of dueSoon) {
+        const title = item.assignment?.name || "Assignment due soon";
+        const dueAt = new Date(item.assignment?.due_at || item.due_at);
+        const hoursLeft = ((dueAt - Date.now()) / 3600000).toFixed(1);
+
+        try {
+          await webpush.sendNotification(
+            user.pushSubscription,
+            JSON.stringify({
+              title: `⏰ Due in ${hoursLeft}h: ${title}`,
+              body: `Course: ${item.context_name || "Unknown"}`,
+              url: item.assignment?.html_url || "/",
+            })
+          );
+          console.log(`[cron] Notified user ${user._id} about: ${title}`);
+        } catch (err) {
+          if (err.statusCode === 410) {
+            console.log("[cron] Subscription expired, removing user.");
+            await User.deleteOne({ _id: user._id });
+          } else {
+            console.error("[cron] Push failed:", err.message);
+          }
         }
       }
+    } catch (err) {
+      console.error(`[cron] Error processing user ${user._id}:`, err.message);
     }
   }
-});
+}
 
-// ─── Start server (ONE listen call) ──────────────────────────────────────────
+// ─── Connect to MongoDB, then start cron + server ────────────────────────────
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`);
-});
+mongoose.connect(process.env.MONGODB_URI, {
+  tls: true,
+  tlsAllowInvalidCertificates: false,
+})
+  .then(() => {
+    console.log("Connected to MongoDB Atlas");
+
+    // Start cron ONLY after DB is ready
+    cron.schedule("*/15 * * * *", runCron);
+    console.log("[cron] Scheduler started (every 1 min for testing)");
+
+    // Start server ONLY after DB is ready
+    const PORT = process.env.PORT || 3001;
+    app.listen(PORT, () => {
+      console.log(`Backend running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("MongoDB connection error:", err);
+    process.exit(1);
+  });
