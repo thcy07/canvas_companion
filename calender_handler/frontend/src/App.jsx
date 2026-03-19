@@ -7,6 +7,7 @@ import Footer from "./Footer";
 import Streak from "./Streak";
 import MonthlyView from "./MonthView";
 import "./App.css";
+import NotificationTester from "./notificationTester";
 
 function HomeView({
   // visible,
@@ -219,7 +220,7 @@ function HomeView({
 
       <div style={{ padding: "12px 0", width: "100%" }}>
         <h1 className="h1-weekly">Here are Your Prioritized Assignments</h1>
-        <h2 style={{ marginTop: 8, color: "#555" }}>
+        <h2 style={{ marginTop: 8, color: "black" }}>
           You have about x hours and x minutes of work left this week.
         </h2>
       </div>
