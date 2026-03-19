@@ -8,11 +8,6 @@ export default defineConfig(({ mode }) => ({
       "/api": "http://localhost:3001",
     },
   },
-  define: {
-    __API_URL__: JSON.stringify(
-      mode === "production"
-        ? "https://canvascompanion-production.up.railway.app"
-        : ""
-    ),
-  },
+define: {
+  __API_URL__: JSON.stringify(process.env.VITE_API_URL || ""),},
 }));

@@ -24,8 +24,15 @@ export default function NotificationTester() {
 
       try {
         const registration = await navigator.serviceWorker.register("/sw.js");
-        const { publicKey } = await fetch(`${__API_URL__}/api/vapid-public-key`).then((r) => r.json());
+        const res = await fetch(`${__API_URL__}/api/vapid-public-key`);
 
+        if (!res.ok) {
+          const text = await res.text();
+          console.error("VAPID fetch failed:", text);
+          throw new Error("Failed to get VAPID key");
+        }
+
+        const { publicKey } = await res.json();
         const pushSubscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(publicKey),
