@@ -1,5 +1,7 @@
 // frontend/src/Footer.jsx
 
+import { Link } from "react-router-dom";
+
 export default function Footer() {
   return (
     <footer
@@ -14,9 +16,9 @@ export default function Footer() {
     >
       <h5 style={{ margin: 0 }}>
         Need help getting your calendar set up? Check out the{" "}
-        <a href="https://example.com/help" target="_blank" rel="noreferrer">
+        <Link to="/help" style={{ color: "#007bff", textDecoration: "none" }}>
           help guide
-        </a>
+        </Link>
         .
       </h5>
     </footer>
