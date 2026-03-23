@@ -1,7 +1,7 @@
 {
   "name": "backend_server",
   "version": "1.0.0",
-  "description": "This document records the exact steps I followed to set up a basic backend server using **Node.js** and **Express**, along with environment variable handling and a test route.  \r The goal was to get a **running backend server** and confirm it works.",
+  "description": "",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -13,8 +13,6 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "axios": "^1.13.4",
-    "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "node-cron": "^4.2.1",
