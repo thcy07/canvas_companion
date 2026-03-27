@@ -16,7 +16,7 @@ export default function Footer() {
     >
       <h5 style={{ margin: 0 }}>
         Need help getting your calendar set up? Check out the{" "}
-        <Link to="/help" style={{ color: "#007bff", textDecoration: "none" }}>
+        <Link to="/walkthrough" style={{ color: "#007bff", textDecoration: "none" }}>
           help guide
         </Link>
         .
