@@ -26,12 +26,20 @@ export default function NotificationTester() {
 
       try {
         const registration = await navigator.serviceWorker.register("/sw.js");
-        const res = await fetch(`${__API_URL__}/api/vapid-public-key`);
+        const apiBase = typeof __API_URL__ !== "undefined" && __API_URL__ ? __API_URL__ : "";
+        const res = await fetch(`${apiBase}/api/vapid-public-key`);
 
         if (!res.ok) {
           const text = await res.text();
           console.error("VAPID fetch failed:", text);
           throw new Error("Failed to get VAPID key");
+        }
+
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          const text = await res.text();
+          console.error("VAPID fetch returned non-JSON response:", text);
+          throw new Error("VAPID response not JSON");
         }
 
         const { publicKey } = await res.json();
@@ -41,7 +49,7 @@ export default function NotificationTester() {
         });
 
         // Re-send subscription to backend (upsert keeps it fresh)
-        await fetch(`${__API_URL__}/api/register`, {
+        const reg = await fetch(`${apiBase}/api/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -50,6 +58,18 @@ export default function NotificationTester() {
             pushSubscription,
           }),
         });
+        if (!reg.ok) {
+          const text = await reg.text();
+          console.error("Register failed:", text);
+          throw new Error("Failed to register subscription");
+        }
+
+        const regContent = reg.headers.get("content-type") || "";
+        if (!regContent.includes("application/json")) {
+          // log non-JSON success body for debugging
+          const text = await reg.text();
+          console.warn("Register returned non-JSON response:", text);
+        }
 
         setStatus("active");
       } catch {

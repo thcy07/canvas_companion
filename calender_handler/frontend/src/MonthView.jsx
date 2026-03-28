@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 // --- helpers ---
 function dueStatus(dueAt) {
@@ -205,37 +206,39 @@ export default function MonthlyView() {
                 }}
               >
                 <div style={{ fontWeight: "bold", marginBottom: 8, color: "#333", textAlign: "left" }}>{day}</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
-                  {dayAssignments.map((x) => {
-                    const status = dueStatus(x.dueAt);
-                    const colors = cardStyleFor(status);
-                    return (
-                      <div
-                        key={x.key}
-                        style={{
-                          ...colors,
-                          borderRadius: 6,
-                          padding: 6,
-                          fontSize: 12,
-                          cursor: "pointer",
-                          width: "100%",
-                          boxSizing: "border-box",
-                        }}
-                        title={x.title}
-                      >
-                        <div style={{ fontWeight: "600", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {x.title}
+                <Link to={`/day/${dateStr}`}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
+                    {dayAssignments.map((x) => {
+                      const status = dueStatus(x.dueAt);
+                      const colors = cardStyleFor(status);
+                      return (
+                        <div
+                          key={x.key}
+                          style={{
+                            ...colors,
+                            borderRadius: 6,
+                            padding: 6,
+                            fontSize: 12,
+                            cursor: "pointer",
+                            width: "100%",
+                            boxSizing: "border-box",
+                          }}
+                          title={x.title}
+                        >
+                          <div style={{ fontWeight: "600", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {x.title}
+                          </div>
+                          <div style={{ fontSize: 10, color: "#666" }}>{x.courseName}</div>
+                          {x.url && (
+                            <a href={x.url} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: "#0066cc" }}>
+                              Open
+                            </a>
+                          )}
                         </div>
-                        <div style={{ fontSize: 10, color: "#666" }}>{x.courseName}</div>
-                        {x.url && (
-                          <a href={x.url} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: "#0066cc" }}>
-                            Open
-                          </a>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                </Link>
               </div>
             );
           })}

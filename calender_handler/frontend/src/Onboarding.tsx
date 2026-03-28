@@ -3,6 +3,9 @@
 
 import { useState } from "react";
 
+declare const __API_URL__: string;
+const apiBase = typeof __API_URL__ !== "undefined" && __API_URL__ ? __API_URL__ : "";
+
 interface OnboardingProps {
   onComplete: () => void;
 }
@@ -39,7 +42,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       if (permission !== "granted") throw new Error("Notification permission denied. Please allow notifications to continue.");
 
       // 3. Fetch VAPID public key from backend
-      const { publicKey } = await fetch("/api/vapid-public-key").then((r) => r.json());
+      const { publicKey } = await fetch(`${apiBase}/api/vapid-public-key`).then((r) => r.json());
 
       // 4. Subscribe to push
       const pushSubscription = await registration.pushManager.subscribe({
@@ -48,7 +51,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       });
 
       // 5. Register user with backend (token gets encrypted server-side)
-      const res = await fetch("/api/register", {
+      const res = await fetch(`${apiBase}/api/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
