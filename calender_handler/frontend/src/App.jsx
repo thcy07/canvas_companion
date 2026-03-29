@@ -289,31 +289,6 @@ function HomeView() {
           </div>
         </div>
 
-        {/* Search + Sort bar */}
-        <div className="filter-bar">
-          <button onClick={load} disabled={loading} style={{
-            background: loading ? "#b0d4be" : "#39ABE9",
-            borderColor: loading ? "#b0d4be" : "#39ABE9",
-            color: "white", fontWeight: 600,
-          }}>
-            {loading ? "Loading…" : "🔄 Refresh"}
-          </button>
-          <input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="🔍 Search assignments, courses…"
-            style={{ flex: "1 1 200px", minWidth: 180 }}
-          />
-          <select value={sortMode} onChange={e => setSortMode(e.target.value)}
-            style={{ borderRadius: 999, padding: "0.5em 1em" }}>
-            <option value="due">Sort: Due date</option>
-            <option value="course">Sort: Course</option>
-          </select>
-          <span style={{ fontSize: "0.85rem", color: "#4a6b57", fontStyle: "italic", whiteSpace: "nowrap" }}>
-            {visible.length} item{visible.length !== 1 ? "s" : ""}
-          </span>
-        </div>
-
         {/* Error */}
         {error && (
           <div style={{
@@ -324,26 +299,7 @@ function HomeView() {
           </div>
         )}
 
-        {/* Assignment grid */}
-        {!loading && !error && (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-            gap: 14,
-          }}>
-            {visible.map(x => (
-              <AssignmentCard key={x.key} x={x} flags={flagsById[x.assignmentId] || []} />
-            ))}
-            {visible.length === 0 && (
-              <div style={{
-                gridColumn: "1 / -1", textAlign: "center",
-                padding: "60px 20px", color: "#4a6b57", fontStyle: "italic",
-              }}>
-                🌿 No assignments found. Enjoy the peace!
-              </div>
-            )}
-          </div>
-        )}
+        
       </div>
       <Footer />
     </div>
