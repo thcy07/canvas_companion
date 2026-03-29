@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { applyMeta, buildFlagsMap, suggestTodayPlan } from "./ai";
+import { applyMeta, buildFlagsMap, suggestTodayPlan } from "./AI";
 import Streak from "./Streak";
 import Footer from "./Footer";
 
