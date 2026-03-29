@@ -1,170 +1,395 @@
 // frontend/src/Onboarding.tsx
-// Clean setup page shown to new users to enter their Canvas URL and API token.
+// Auth flow: Sign In or Sign Up, with Canvas setup built into Sign Up.
 
 import { useState } from "react";
 
 declare const __API_URL__: string;
-const apiBase = typeof __API_URL__ !== "undefined" && __API_URL__ ? __API_URL__ : "";
 
 interface OnboardingProps {
   onComplete: () => void;
 }
 
+type Screen = "welcome" | "signin" | "signup-account" | "signup-canvas" | "loading";
+
+function getApiBase() {
+  return typeof __API_URL__ !== "undefined" && __API_URL__ ? __API_URL__ : "";
+}
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+async function subscribeToPush(apiBase: string): Promise<PushSubscription | null> {
+  try {
+    if (!("serviceWorker" in navigator)) return null;
+    const registration = await navigator.serviceWorker.register("/sw.js");
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return null;
+    const { publicKey } = await fetch(`${apiBase}/api/vapid-public-key`).then((r) => r.json());
+    return await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+  } catch {
+    return null;
+  }
+}
+
 export default function Onboarding({ onComplete }: OnboardingProps) {
-  const [canvasUrl, setCanvasUrl] = useState("");
-  const [canvasToken, setCanvasToken] = useState("");
-  const [step, setStep] = useState<"form" | "loading" | "error">("form");
+  const [screen, setScreen] = useState<Screen>("welcome");
   const [errorMsg, setErrorMsg] = useState("");
 
-  function urlBase64ToUint8Array(base64String: string) {
-    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-    const rawData = atob(base64);
-    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+  // Sign in fields
+  const [siEmail, setSiEmail] = useState("");
+  const [siPassword, setSiPassword] = useState("");
+
+  // Sign up fields
+  const [suEmail, setSuEmail] = useState("");
+  const [suPassword, setSuPassword] = useState("");
+  const [suConfirm, setSuConfirm] = useState("");
+  const [suCanvasUrl, setSuCanvasUrl] = useState("");
+  const [suCanvasToken, setSuCanvasToken] = useState("");
+
+  function clearError() {
+    setErrorMsg("");
   }
 
-  async function handleSubmit() {
-    if (!canvasUrl.trim() || !canvasToken.trim()) {
-      setErrorMsg("Please fill in both fields.");
+  // ── Sign In ────────────────────────────────────────────────────────────────
+
+  async function handleSignIn() {
+    if (!siEmail.trim() || !siPassword.trim()) {
+      setErrorMsg("Please enter your email and password.");
       return;
     }
-
-    setStep("loading");
+    setScreen("loading");
     setErrorMsg("");
-
     try {
-      // 1. Register service worker
-      if (!("serviceWorker" in navigator)) throw new Error("Service workers not supported.");
-      const registration = await navigator.serviceWorker.register("/sw.js");
-
-      // 2. Request notification permission
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") throw new Error("Notification permission denied. Please allow notifications to continue.");
-
-      // 3. Fetch VAPID public key from backend
-      const { publicKey } = await fetch(`${apiBase}/api/vapid-public-key`).then((r) => r.json());
-
-      // 4. Subscribe to push
-      const pushSubscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      const apiBase = getApiBase();
+      const res = await fetch(`${apiBase}/api/auth/signin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: siEmail.trim(), password: siPassword }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Sign in failed.");
 
-      // 5. Register user with backend (token gets encrypted server-side)
-      const res = await fetch(`${apiBase}/api/register`, {
+      // Save JWT + canvas info
+      localStorage.setItem("authToken", data.token);
+      localStorage.setItem("canvasUrl", data.canvasUrl || "");
+      localStorage.setItem("canvasToken", data.canvasToken || "");
+      localStorage.setItem("setupComplete", "true");
+
+      // Re-subscribe to push in background (new device may need fresh subscription)
+      const pushSub = await subscribeToPush(apiBase);
+      if (pushSub && data.token) {
+        await fetch(`${apiBase}/api/auth/update-push`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.token}`,
+          },
+          body: JSON.stringify({ pushSubscription: pushSub }),
+        });
+      }
+
+      onComplete();
+    } catch (err: any) {
+      setErrorMsg(err.message || "Something went wrong.");
+      setScreen("signin");
+    }
+  }
+
+  // ── Sign Up Step 1 → Step 2 ───────────────────────────────────────────────
+
+  function handleSignUpNext() {
+    if (!suEmail.trim() || !suPassword.trim() || !suConfirm.trim()) {
+      setErrorMsg("Please fill in all fields.");
+      return;
+    }
+    if (suPassword !== suConfirm) {
+      setErrorMsg("Passwords do not match.");
+      return;
+    }
+    if (suPassword.length < 8) {
+      setErrorMsg("Password must be at least 8 characters.");
+      return;
+    }
+    clearError();
+    setScreen("signup-canvas");
+  }
+
+  // ── Sign Up Step 2 → Done ─────────────────────────────────────────────────
+
+  async function handleSignUpSubmit() {
+    if (!suCanvasUrl.trim() || !suCanvasToken.trim()) {
+      setErrorMsg("Please fill in both Canvas fields.");
+      return;
+    }
+    setScreen("loading");
+    setErrorMsg("");
+    try {
+      const apiBase = getApiBase();
+      const pushSub = await subscribeToPush(apiBase);
+
+      const res = await fetch(`${apiBase}/api/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          canvasUrl: canvasUrl.trim(),
-          canvasToken: canvasToken.trim(),
-          pushSubscription,
+          email: suEmail.trim(),
+          password: suPassword,
+          canvasUrl: suCanvasUrl.trim(),
+          canvasToken: suCanvasToken.trim(),
+          pushSubscription: pushSub,
         }),
       });
-
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Registration failed.");
+      if (!res.ok) throw new Error(data.error || "Sign up failed.");
 
-      // 6. Mark setup complete in localStorage so we don't show onboarding again
+      localStorage.setItem("authToken", data.token);
+      localStorage.setItem("canvasUrl", data.canvasUrl || "");
       localStorage.setItem("setupComplete", "true");
+
       onComplete();
     } catch (err: any) {
-      setErrorMsg(err.message || "Something went wrong. Please try again.");
-      setStep("error");
+      setErrorMsg(err.message || "Something went wrong.");
+      setScreen("signup-canvas");
     }
   }
 
-  return (
-    <div style={{
-      minHeight: "100vh",
-      background: "linear-gradient(135deg, #0b63ff 0%, #003494 100%)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontFamily: "'Georgia', serif",
-      padding: "24px",
-    }}>
+  // ── Shared input style ─────────────────────────────────────────────────────
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "12px 14px",
+    borderRadius: 10,
+    border: "2px solid #e0e0e0",
+    fontSize: 15,
+    outline: "none",
+    boxSizing: "border-box",
+    fontFamily: "inherit",
+    transition: "border-color 0.2s",
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: "block",
+    fontWeight: 700,
+    fontSize: 14,
+    marginBottom: 6,
+    color: "#222",
+  };
+
+  const fieldStyle: React.CSSProperties = { marginBottom: 18 };
+
+  function InputField({
+    label, type = "text", value, onChange, placeholder, hint,
+  }: {
+    label: string; type?: string; value: string;
+    onChange: (v: string) => void; placeholder?: string; hint?: string;
+  }) {
+    return (
+      <div style={fieldStyle}>
+        <label style={labelStyle}>{label}</label>
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          style={inputStyle}
+          onFocus={(e) => (e.target.style.borderColor = "#0b63ff")}
+          onBlur={(e) => (e.target.style.borderColor = "#e0e0e0")}
+        />
+        {hint && <p style={{ margin: "5px 0 0", fontSize: 12, color: "#888" }}>{hint}</p>}
+      </div>
+    );
+  }
+
+  function PrimaryButton({ label, onClick }: { label: string; onClick: () => void }) {
+    return (
+      <button
+        onClick={onClick}
+        style={{
+          width: "100%",
+          padding: "14px",
+          borderRadius: 12,
+          border: "none",
+          background: "#0b63ff",
+          color: "white",
+          fontSize: 16,
+          fontWeight: 700,
+          cursor: "pointer",
+          fontFamily: "inherit",
+          marginTop: 4,
+        }}
+      >
+        {label}
+      </button>
+    );
+  }
+
+  function ErrorBox({ msg }: { msg: string }) {
+    if (!msg) return null;
+    return (
       <div style={{
-        background: "white",
-        borderRadius: 20,
-        padding: "48px 40px",
-        maxWidth: 480,
-        width: "100%",
-        boxShadow: "0 24px 80px rgba(0,0,0,0.3)",
+        background: "#fff0f0", border: "1px solid #ffcccc",
+        borderRadius: 10, padding: "12px 14px", marginBottom: 18,
+        fontSize: 13, color: "#c00",
       }}>
-        {/* Logo / Header */}
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ fontSize: 48, marginBottom: 8 }}>🎓</div>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: "#0b63ff" }}>
-            Canvas Companion
-          </h1>
-          <p style={{ margin: "8px 0 0", color: "#555", fontSize: 15 }}>
-            Get notified about assignments due within 24 hours — even when the tab is closed.
-          </p>
-        </div>
+        {msg}
+      </div>
+    );
+  }
 
-        {/* Step indicator */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 28 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#0b63ff" }} />
-          <div style={{ fontSize: 13, color: "#0b63ff", fontWeight: 600 }}>One-time setup</div>
-        </div>
+  // ── Layout wrapper ─────────────────────────────────────────────────────────
 
-        {/* Canvas URL */}
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ display: "block", fontWeight: 700, fontSize: 14, marginBottom: 6, color: "#222" }}>
-            Your Canvas URL
-          </label>
-          <input
-            type="url"
-            value={canvasUrl}
-            onChange={(e) => setCanvasUrl(e.target.value)}
-            placeholder="https://canvas.youruniversity.edu"
-            disabled={step === "loading"}
-            style={{
-              width: "100%",
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "2px solid #e0e0e0",
-              fontSize: 15,
-              outline: "none",
-              boxSizing: "border-box",
-              transition: "border-color 0.2s",
-            }}
-            onFocus={(e) => (e.target.style.borderColor = "#0b63ff")}
-            onBlur={(e) => (e.target.style.borderColor = "#e0e0e0")}
-          />
-          <p style={{ margin: "6px 0 0", fontSize: 12, color: "#888" }}>
-            Example: https://canvas.byu.edu
-          </p>
+  function Card({ children }: { children: React.ReactNode }) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #0b63ff 0%, #003494 100%)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: "'Georgia', serif", padding: "24px",
+      }}>
+        <div style={{
+          background: "white", borderRadius: 20, padding: "48px 40px",
+          maxWidth: 480, width: "100%",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.3)",
+        }}>
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <div style={{ fontSize: 48, marginBottom: 8 }}>🎓</div>
+            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: "#0b63ff", fontFamily: "inherit" }}>
+              Canvas Companion
+            </h1>
+          </div>
+          {children}
         </div>
+      </div>
+    );
+  }
 
-        {/* Canvas API Token */}
-        <div style={{ marginBottom: 8 }}>
-          <label style={{ display: "block", fontWeight: 700, fontSize: 14, marginBottom: 6, color: "#222" }}>
-            Canvas API Token
-          </label>
+  // ── Screens ────────────────────────────────────────────────────────────────
+
+  if (screen === "loading") {
+    return (
+      <Card>
+        <p style={{ textAlign: "center", color: "#555", fontSize: 16 }}>
+          ⏳ Please wait…
+        </p>
+      </Card>
+    );
+  }
+
+  if (screen === "welcome") {
+    return (
+      <Card>
+        <p style={{ textAlign: "center", color: "#555", fontSize: 15, marginBottom: 32 }}>
+          Get notified about assignments due within 24 hours — even when the tab is closed.
+        </p>
+        <PrimaryButton label="Sign In" onClick={() => { clearError(); setScreen("signin"); }} />
+        <button
+          onClick={() => { clearError(); setScreen("signup-account"); }}
+          style={{
+            width: "100%", padding: "14px", borderRadius: 12,
+            border: "2px solid #0b63ff", background: "white",
+            color: "#0b63ff", fontSize: 16, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit", marginTop: 12,
+          }}
+        >
+          Create Account
+        </button>
+      </Card>
+    );
+  }
+
+  if (screen === "signin") {
+    return (
+      <Card>
+        <h2 style={{ margin: "0 0 24px", fontSize: 22, color: "#111" }}>Sign In</h2>
+        <ErrorBox msg={errorMsg} />
+        <InputField label="Email" type="email" value={siEmail} onChange={setSiEmail} placeholder="you@university.edu" />
+        <InputField label="Password" type="password" value={siPassword} onChange={setSiPassword} placeholder="Your password" />
+        <PrimaryButton label="Sign In" onClick={handleSignIn} />
+        <p style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "#555" }}>
+          Don't have an account?{" "}
+          <span
+            onClick={() => { clearError(); setScreen("signup-account"); }}
+            style={{ color: "#0b63ff", cursor: "pointer", fontWeight: 700 }}
+          >
+            Sign Up
+          </span>
+        </p>
+        <p style={{ textAlign: "center", marginTop: 4, fontSize: 13, color: "#555" }}>
+          <span
+            onClick={() => { clearError(); setScreen("welcome"); }}
+            style={{ color: "#999", cursor: "pointer" }}
+          >
+            ← Back
+          </span>
+        </p>
+      </Card>
+    );
+  }
+
+  if (screen === "signup-account") {
+    return (
+      <Card>
+        <h2 style={{ margin: "0 0 6px", fontSize: 22, color: "#111" }}>Create Account</h2>
+        <p style={{ margin: "0 0 24px", fontSize: 13, color: "#888" }}>Step 1 of 2 — Account details</p>
+        <ErrorBox msg={errorMsg} />
+        <InputField label="Email" type="email" value={suEmail} onChange={setSuEmail} placeholder="you@university.edu" />
+        <InputField label="Password" type="password" value={suPassword} onChange={setSuPassword} placeholder="At least 8 characters" />
+        <InputField label="Confirm Password" type="password" value={suConfirm} onChange={setSuConfirm} placeholder="Repeat your password" />
+        <PrimaryButton label="Next →" onClick={handleSignUpNext} />
+        <p style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "#555" }}>
+          Already have an account?{" "}
+          <span
+            onClick={() => { clearError(); setScreen("signin"); }}
+            style={{ color: "#0b63ff", cursor: "pointer", fontWeight: 700 }}
+          >
+            Sign In
+          </span>
+        </p>
+        <p style={{ textAlign: "center", marginTop: 4, fontSize: 13, color: "#555" }}>
+          <span
+            onClick={() => { clearError(); setScreen("welcome"); }}
+            style={{ color: "#999", cursor: "pointer" }}
+          >
+            ← Back
+          </span>
+        </p>
+      </Card>
+    );
+  }
+
+  if (screen === "signup-canvas") {
+    return (
+      <Card>
+        <h2 style={{ margin: "0 0 6px", fontSize: 22, color: "#111" }}>Connect Canvas</h2>
+        <p style={{ margin: "0 0 24px", fontSize: 13, color: "#888" }}>Step 2 of 2 — Canvas credentials</p>
+        <ErrorBox msg={errorMsg} />
+        <InputField
+          label="Your Canvas URL"
+          type="url"
+          value={suCanvasUrl}
+          onChange={setSuCanvasUrl}
+          placeholder="https://canvas.youruniversity.edu"
+          hint="Example: https://canvas.byu.edu"
+        />
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Canvas API Token</label>
           <input
             type="password"
-            value={canvasToken}
-            onChange={(e) => setCanvasToken(e.target.value)}
+            value={suCanvasToken}
+            onChange={(e) => setSuCanvasToken(e.target.value)}
             placeholder="Paste your Canvas API token here"
-            disabled={step === "loading"}
-            style={{
-              width: "100%",
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "2px solid #e0e0e0",
-              fontSize: 15,
-              outline: "none",
-              boxSizing: "border-box",
-              transition: "border-color 0.2s",
-            }}
+            style={inputStyle}
             onFocus={(e) => (e.target.style.borderColor = "#0b63ff")}
             onBlur={(e) => (e.target.style.borderColor = "#e0e0e0")}
           />
         </div>
-
-        {/* How to get token instructions */}
-        <details style={{ marginBottom: 24 }}>
+        <details style={{ marginBottom: 20 }}>
           <summary style={{ fontSize: 13, color: "#0b63ff", cursor: "pointer", userSelect: "none" }}>
             How do I get my Canvas API token?
           </summary>
@@ -177,55 +402,25 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             <li>Copy and paste the token above</li>
           </ol>
         </details>
-
-        {/* Security note */}
         <div style={{
-          background: "#f0f7ff",
-          border: "1px solid #d0e8ff",
-          borderRadius: 10,
-          padding: "12px 14px",
-          marginBottom: 24,
-          fontSize: 13,
-          color: "#444",
+          background: "#f0f7ff", border: "1px solid #d0e8ff",
+          borderRadius: 10, padding: "12px 14px", marginBottom: 20,
+          fontSize: 13, color: "#444",
         }}>
           🔒 Your token is <b>encrypted</b> before being stored. It is never shared or sold.
         </div>
+        <PrimaryButton label="Create Account & Get Started" onClick={handleSignUpSubmit} />
+        <p style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "#555" }}>
+          <span
+            onClick={() => { clearError(); setScreen("signup-account"); }}
+            style={{ color: "#999", cursor: "pointer" }}
+          >
+            ← Back
+          </span>
+        </p>
+      </Card>
+    );
+  }
 
-        {/* Error message */}
-        {(step === "error" || errorMsg) && (
-          <div style={{
-            background: "#fff0f0",
-            border: "1px solid #ffcccc",
-            borderRadius: 10,
-            padding: "12px 14px",
-            marginBottom: 20,
-            fontSize: 13,
-            color: "#c00",
-          }}>
-            {errorMsg}
-          </div>
-        )}
-
-        {/* Submit button */}
-        <button
-          onClick={handleSubmit}
-          disabled={step === "loading"}
-          style={{
-            width: "100%",
-            padding: "14px",
-            borderRadius: 12,
-            border: "none",
-            background: step === "loading" ? "#aaa" : "#0b63ff",
-            color: "white",
-            fontSize: 16,
-            fontWeight: 700,
-            cursor: step === "loading" ? "not-allowed" : "pointer",
-            transition: "background 0.2s",
-          }}
-        >
-          {step === "loading" ? "Setting up…" : "Enable Notifications & Get Started"}
-        </button>
-      </div>
-    </div>
-  );
+  return null;
 }

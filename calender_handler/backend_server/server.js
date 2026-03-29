@@ -8,6 +8,8 @@ import webpush from "web-push";
 import cron from "node-cron";
 import mongoose from "mongoose";
 import crypto from "crypto";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
 dotenv.config();
 
@@ -37,12 +39,33 @@ function decrypt(data) {
   return decipher.update(encrypted) + decipher.final("utf8");
 }
 
+// ─── JWT helper ───────────────────────────────────────────────────────────────
+
+function signToken(userId) {
+  return jwt.sign({ userId: String(userId) }, process.env.JWT_SECRET, { expiresIn: "30d" });
+}
+
+function verifyToken(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Missing or invalid token" });
+  }
+  try {
+    req.user = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ error: "Token expired or invalid" });
+  }
+}
+
 // ─── MongoDB Schema ───────────────────────────────────────────────────────────
 
 const userSchema = new mongoose.Schema({
-  canvasUrl: { type: String, required: true },
-  encryptedToken: { type: String, required: true },
-  pushSubscription: { type: Object, required: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  passwordHash: { type: String, required: true },
+  canvasUrl: { type: String },
+  encryptedToken: { type: String },
+  pushSubscription: { type: Object },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
@@ -73,7 +96,99 @@ app.get("/api/vapid-public-key", (req, res) => {
   res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
 });
 
-// Register a user: save encrypted Canvas token + push subscription
+// ─── Auth: Sign Up ────────────────────────────────────────────────────────────
+
+app.post("/api/auth/signup", async (req, res) => {
+  try {
+    const { email, password, canvasUrl, canvasToken, pushSubscription } = req.body;
+
+    if (!email || !password || !canvasUrl || !canvasToken) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const existing = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existing) {
+      return res.status(409).json({ error: "An account with this email already exists." });
+    }
+
+    const normalizedUrl = canvasUrl.replace(/\/$/, "");
+
+    // Verify Canvas token works
+    const testRes = await fetch(`${normalizedUrl}/api/v1/users/self`, {
+      headers: { Authorization: `Bearer ${canvasToken}` },
+    });
+    if (!testRes.ok) {
+      return res.status(401).json({ error: "Invalid Canvas URL or API token. Please check and try again." });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const encryptedToken = encrypt(canvasToken);
+
+    const user = await User.create({
+      email: email.toLowerCase().trim(),
+      passwordHash,
+      canvasUrl: normalizedUrl,
+      encryptedToken,
+      pushSubscription: pushSubscription || null,
+    });
+
+    const token = signToken(user._id);
+    res.json({ ok: true, token, canvasUrl: normalizedUrl });
+  } catch (err) {
+    console.error("Signup error:", err);
+    res.status(500).json({ error: "Server error", details: String(err) });
+  }
+});
+
+// ─── Auth: Sign In ────────────────────────────────────────────────────────────
+
+app.post("/api/auth/signin", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Missing email or password" });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    const token = signToken(user._id);
+    const canvasToken = user.encryptedToken ? decrypt(user.encryptedToken) : null;
+
+    res.json({
+      ok: true,
+      token,
+      canvasUrl: user.canvasUrl,
+      canvasToken,
+    });
+  } catch (err) {
+    console.error("Signin error:", err);
+    res.status(500).json({ error: "Server error", details: String(err) });
+  }
+});
+
+// ─── Auth: Update push subscription (called after sign in on new device) ─────
+
+app.post("/api/auth/update-push", verifyToken, async (req, res) => {
+  try {
+    const { pushSubscription } = req.body;
+    await User.findByIdAndUpdate(req.user.userId, { pushSubscription, updatedAt: new Date() });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Server error", details: String(err) });
+  }
+});
+
+// ─── Legacy register route (kept for compatibility) ───────────────────────────
+
 app.post("/api/register", async (req, res) => {
   try {
     const { canvasUrl, canvasToken, pushSubscription } = req.body;
@@ -84,7 +199,6 @@ app.post("/api/register", async (req, res) => {
 
     const normalizedUrl = canvasUrl.replace(/\/$/, "");
 
-    // Verify the token works before saving
     const testRes = await fetch(`${normalizedUrl}/api/v1/users/self`, {
       headers: { Authorization: `Bearer ${canvasToken}` },
     });
@@ -187,7 +301,7 @@ async function runCron() {
 
   let users;
   try {
-    users = await User.find({});
+    users = await User.find({ encryptedToken: { $exists: true }, pushSubscription: { $exists: true } });
   } catch (err) {
     console.error("[cron] Failed to fetch users from DB:", err.message);
     return;
@@ -202,6 +316,7 @@ async function runCron() {
 
   for (const user of users) {
     try {
+      if (!user.encryptedToken || !user.pushSubscription) continue;
       const canvasToken = decrypt(user.encryptedToken);
       const dueSoon = await getDueSoonForUser(user.canvasUrl, canvasToken);
 
@@ -224,8 +339,8 @@ async function runCron() {
           console.log(`[cron] Notified user ${user._id} about: ${title}`);
         } catch (err) {
           if (err.statusCode === 410) {
-            console.log("[cron] Subscription expired, removing user.");
-            await User.deleteOne({ _id: user._id });
+            console.log("[cron] Subscription expired, clearing push subscription.");
+            await User.findByIdAndUpdate(user._id, { pushSubscription: null });
           } else {
             console.error("[cron] Push failed:", err.message);
           }
@@ -246,11 +361,9 @@ mongoose.connect(process.env.MONGODB_URI, {
   .then(() => {
     console.log("Connected to MongoDB Atlas");
 
-    // Start cron ONLY after DB is ready
     cron.schedule("*/15 * * * *", runCron);
-    console.log("[cron] Scheduler started (every 1 min for testing)");
+    console.log("[cron] Scheduler started (every 15 min)");
 
-    // Start server ONLY after DB is ready
     const PORT = process.env.PORT || 3001;
     app.listen(PORT, () => {
       console.log(`Backend running on http://localhost:${PORT}`);
