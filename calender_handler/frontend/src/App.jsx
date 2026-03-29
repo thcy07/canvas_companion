@@ -8,6 +8,7 @@ import Streak from "./Streak";
 import MonthlyView from "./MonthView";
 import "./App.css";
 import Notification from "./Notification";
+import Onboarding from "./Onboarding";
 
 function HomeView({
   // visible,
