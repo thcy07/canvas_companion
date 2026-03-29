@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { applyMeta, buildFlagsMap, suggestTodayPlan, AI } from "./AI";
-import { Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
+import { applyMeta, buildFlagsMap, suggestTodayPlan } from "./AI";
+import { Routes, Route, Link, useLocation } from "react-router-dom";
 import APIKeyWalkthroughView from "./Walkthrough";
 import DayView from "./DayView";
 import Footer from "./Footer";
@@ -25,10 +25,10 @@ function dueStatus(dueAt) {
 
 function cardStyleFor(status) {
   switch (status) {
-    case "red":    return { background: "#f7e4df", border: "1.5px solid #eab5a8" };
+    case "red":    return { background: "#fde8e4", border: "1.5px solid #f5b8ae" };
     case "yellow": return { background: "#fdf5d0", border: "1.5px solid #f0d98c" };
-    case "green":  return { background: "#e8f5e5", border: "1.5px solid #a8c5a0" };
-    default:       return { background: "#fdf6ec", border: "1.5px solid #d4b896" };
+    case "green":  return { background: "#ddf0e2", border: "1.5px solid #8bbfa0" };
+    default:       return { background: "#eaf5ee", border: "1.5px solid #b0d4be" };
   }
 }
 
@@ -47,12 +47,13 @@ function safeText(s, fallback = "") {
 
 function Navbar({ showTA, setShowTA }) {
   const location = useLocation();
-  const navigate = useNavigate();
 
   function handleSignOut() {
     localStorage.clear();
     window.location.reload();
   }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   return (
     <nav className="navbar">
@@ -62,14 +63,13 @@ function Navbar({ showTA, setShowTA }) {
           <Link to="/">Home</Link>
         </li>
         <li className={`nav-link ${location.pathname.startsWith("/day") ? "active" : ""}`}>
-          <Link to={`/day/${new Date().toISOString().slice(0, 10)}`}>Day View</Link>
+          <Link to={`/day/${todayStr}`}>Day View</Link>
         </li>
         {setShowTA && (
           <li>
             <button
               onClick={() => setShowTA(s => !s)}
               className={`toggle-btn ${showTA ? "active" : ""}`}
-              title="Toggle TA/grading assignments"
             >
               {showTA ? "🎓 TA On" : "🎓 TA Off"}
             </button>
@@ -78,8 +78,8 @@ function Navbar({ showTA, setShowTA }) {
         <li className="status">Welcome back 🌿</li>
         <li>
           <button onClick={handleSignOut} style={{
-            background: "#f7e4df", borderColor: "#eab5a8", color: "#6b4c3b",
-            fontSize: "0.85rem", padding: "5px 14px",
+            background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)",
+            color: "rgba(232,245,238,0.8)", fontSize: "0.85rem", padding: "5px 14px",
           }}>
             Sign Out
           </button>
@@ -101,45 +101,41 @@ function AssignmentCard({ x, flags }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontFamily: "'Playfair Display', Georgia, serif",
-            fontSize: "1rem", fontWeight: 700, color: "#3d2b1f",
+            fontSize: "1rem", fontWeight: 700, color: "#1e3a2f",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
             {x.title}
           </div>
-          <div style={{ fontSize: "0.8rem", color: "#7a5c4a", marginTop: 2 }}>
+          <div style={{ fontSize: "0.82rem", color: "#4a6b57", marginTop: 2 }}>
             {x.courseName}
           </div>
-          <div style={{ fontSize: "0.8rem", color: "#7a5c4a", marginTop: 4 }}>
+          <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 4 }}>
             📅 {formatDue(x.dueAt)}
           </div>
           {flags && flags.length > 0 && (
             <div style={{ marginTop: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
-              {flags.map((f, i) => {
-                const bg = f.severity === 3 ? "#f7e4df"
-                  : f.severity === 2 ? "#fdf5d0"
-                  : f.severity === 1 ? "#e8f5e5"
-                  : "#ede8f5";
-                return (
-                  <span key={i} style={{
-                    padding: "1px 8px", borderRadius: 999, fontSize: "0.7rem",
-                    background: bg, color: "#3d2b1f", border: "1px solid rgba(0,0,0,0.07)",
-                  }}>
-                    {f.type.replace(/_/g, " ")}
-                  </span>
-                );
-              })}
+              {flags.map((f, i) => (
+                <span key={i} style={{
+                  padding: "1px 8px", borderRadius: 999, fontSize: "0.7rem",
+                  background: "#A9DEF9", color: "#1e3a2f", border: "1px solid #39ABE9",
+                }}>
+                  {f.type.replace(/_/g, " ")}
+                </span>
+              ))}
             </div>
           )}
         </div>
-        <div style={{ textAlign: "right", fontSize: "0.8rem", color: "#7a5c4a", flexShrink: 0 }}>
-          {x.points !== null && <div style={{ fontWeight: 600 }}>{x.points} pts</div>}
+        <div style={{ textAlign: "right", fontSize: "0.8rem", color: "#4a6b57", flexShrink: 0 }}>
+          {x.points !== null && (
+            <div style={{ fontWeight: 600 }}>{x.points} pts</div>
+          )}
           {x.url ? (
             <a className="canvas-link" href={x.url} target="_blank" rel="noreferrer"
               style={{ display: "inline-block", marginTop: 8 }}>
               Open ↗
             </a>
           ) : (
-            <span style={{ fontSize: "0.75rem", color: "#b0956f" }}>No link</span>
+            <span style={{ fontSize: "0.75rem", color: "#7a9b84" }}>No link</span>
           )}
         </div>
       </div>
@@ -231,18 +227,22 @@ function HomeView() {
 
       <div style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 24px" }}>
         {/* Page title */}
-        <div style={{ marginBottom: 32 }}>
+        <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontSize: "2rem", margin: 0 }}>Your Assignments 🌸</h1>
-          <p style={{ color: "#7a5c4a", marginTop: 6, fontStyle: "italic" }}>
+          <p style={{ color: "#4a6b57", marginTop: 6, fontStyle: "italic", margin: "6px 0 0" }}>
             Here's what's coming up this month
           </p>
         </div>
 
         {/* Main layout: calendar left, sidebar right */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24, marginBottom: 32 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 24, marginBottom: 28 }}>
           {/* Calendar */}
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1.5px solid #d4b896" }}>
+            <div style={{
+              padding: "14px 20px",
+              borderBottom: "1.5px solid #b0d4be",
+              background: "linear-gradient(90deg, #ddf1fd, #eaf5ee)",
+            }}>
               <span className="section-title" style={{ marginBottom: 0 }}>📅 Monthly Calendar</span>
             </div>
             <MonthlyView />
@@ -251,26 +251,31 @@ function HomeView() {
           {/* Sidebar */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {/* Streak */}
-            <div className="card" style={{ background: "linear-gradient(135deg, #e8f5e5, #fdf6ec)", textAlign: "center" }}>
+            <div className="card" style={{
+              background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)",
+              textAlign: "center",
+            }}>
               <Streak />
             </div>
 
             {/* AI Suggestions */}
-            <div className="card" style={{ background: "linear-gradient(135deg, #f7e4df, #fdf5d0)" }}>
+            <div className="card" style={{
+              background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)",
+            }}>
               <div className="section-title">✨ Today's Plan</div>
               {todayPlan.length === 0 ? (
-                <p style={{ color: "#7a5c4a", fontSize: "0.9rem", fontStyle: "italic" }}>
+                <p style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic", margin: 0 }}>
                   No suggestions right now — you're on top of it! 🌿
                 </p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {todayPlan.map(p => (
                     <div key={`${p.assignmentId}-${p.title}`} style={{
-                      background: "white", borderRadius: 10,
-                      border: "1.5px solid #d4b896", padding: "10px 14px",
+                      background: "#FFFCF7", borderRadius: 10,
+                      border: "1.5px solid #A9DEF9", padding: "10px 14px",
                     }}>
-                      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#3d2b1f" }}>{p.title}</div>
-                      <div style={{ fontSize: "0.8rem", color: "#7a5c4a", marginTop: 2 }}>
+                      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e3a2f" }}>{p.title}</div>
+                      <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 2 }}>
                         ⏱ {p.minutes} min · {p.reason}
                       </div>
                     </div>
@@ -282,14 +287,10 @@ function HomeView() {
         </div>
 
         {/* Search + Sort bar */}
-        <div style={{
-          display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center",
-          marginBottom: 20, padding: "14px 20px",
-          background: "white", borderRadius: 14, border: "1.5px solid #d4b896",
-        }}>
+        <div className="filter-bar">
           <button onClick={load} disabled={loading} style={{
-            background: loading ? "#d4b896" : "#a8c5a0",
-            borderColor: loading ? "#d4b896" : "#7d9b76",
+            background: loading ? "#b0d4be" : "#39ABE9",
+            borderColor: loading ? "#b0d4be" : "#39ABE9",
             color: "white", fontWeight: 600,
           }}>
             {loading ? "Loading…" : "🔄 Refresh"}
@@ -305,7 +306,7 @@ function HomeView() {
             <option value="due">Sort: Due date</option>
             <option value="course">Sort: Course</option>
           </select>
-          <span style={{ fontSize: "0.85rem", color: "#7a5c4a", fontStyle: "italic" }}>
+          <span style={{ fontSize: "0.85rem", color: "#4a6b57", fontStyle: "italic", whiteSpace: "nowrap" }}>
             {visible.length} item{visible.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -313,8 +314,8 @@ function HomeView() {
         {/* Error */}
         {error && (
           <div style={{
-            padding: 14, borderRadius: 12, background: "#f7e4df",
-            border: "1.5px solid #eab5a8", color: "#6b4c3b", marginBottom: 20,
+            padding: 14, borderRadius: 12, background: "#fde8e4",
+            border: "1.5px solid #f5b8ae", color: "#6b1e1e", marginBottom: 20,
           }}>
             <b>Error:</b> {error}
           </div>
@@ -324,7 +325,7 @@ function HomeView() {
         {!loading && !error && (
           <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
             gap: 14,
           }}>
             {visible.map(x => (
@@ -333,7 +334,7 @@ function HomeView() {
             {visible.length === 0 && (
               <div style={{
                 gridColumn: "1 / -1", textAlign: "center",
-                padding: "60px 20px", color: "#7a5c4a", fontStyle: "italic",
+                padding: "60px 20px", color: "#4a6b57", fontStyle: "italic",
               }}>
                 🌿 No assignments found. Enjoy the peace!
               </div>

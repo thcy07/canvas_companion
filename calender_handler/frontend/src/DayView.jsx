@@ -18,10 +18,10 @@ function dueStatus(dueAt) {
 
 function cardStyleFor(status) {
   switch (status) {
-    case "red":    return { background: "#f7e4df", border: "1.5px solid #eab5a8" };
+    case "red":    return { background: "#fde8e4", border: "1.5px solid #f5b8ae" };
     case "yellow": return { background: "#fdf5d0", border: "1.5px solid #f0d98c" };
-    case "green":  return { background: "#e8f5e5", border: "1.5px solid #a8c5a0" };
-    default:       return { background: "#fdf6ec", border: "1.5px solid #d4b896" };
+    case "green":  return { background: "#ddf0e2", border: "1.5px solid #8bbfa0" };
+    default:       return { background: "#eaf5ee", border: "1.5px solid #b0d4be" };
   }
 }
 
@@ -41,8 +41,9 @@ export default function DayView() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [showTA, setShowTA] = useState(false);
 
-  // Parse date from URL param, fallback to today
   const targetDate = useMemo(() => {
     if (date) {
       const d = new Date(date + "T00:00:00");
@@ -94,7 +95,6 @@ export default function DayView() {
     };
   }), [items]);
 
-  // Filter to assignments due THIS week (7 days from targetDate)
   const weekStart = useMemo(() => {
     const d = new Date(targetDate);
     d.setHours(0, 0, 0, 0);
@@ -113,14 +113,24 @@ export default function DayView() {
     return due >= weekStart && due < weekEnd;
   }), [normalized, weekStart, weekEnd]);
 
-  const assignmentsWithMeta = useMemo(() => applyMeta(weekItems, {}), [weekItems]);
+  const filtered = useMemo(() => {
+    let result = weekItems;
+    if (!showTA) result = result.filter(x => !(typeof x.type === "string" && x.type.toLowerCase() === "grading"));
+    const q = query.trim().toLowerCase();
+    if (q) result = result.filter(x =>
+      x.title.toLowerCase().includes(q) ||
+      x.courseName.toLowerCase().includes(q)
+    );
+    return result;
+  }, [weekItems, showTA, query]);
+
+  const assignmentsWithMeta = useMemo(() => applyMeta(filtered, {}), [filtered]);
   const flagsById = useMemo(() => buildFlagsMap(assignmentsWithMeta), [assignmentsWithMeta]);
   const todayPlan = useMemo(() => suggestTodayPlan(assignmentsWithMeta, 120), [assignmentsWithMeta]);
 
-  // Group by date
   const grouped = useMemo(() => {
     const g = {};
-    weekItems.forEach(x => {
+    filtered.forEach(x => {
       if (!x.dueAt) return;
       const d = new Date(x.dueAt);
       const key = d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
@@ -128,15 +138,19 @@ export default function DayView() {
       g[key].push(x);
     });
     return g;
-  }, [weekItems]);
+  }, [filtered]);
 
   const dayKeys = Object.keys(grouped);
 
-  // Nav: prev/next day
   function offsetDate(days) {
     const d = new Date(targetDate);
     d.setDate(d.getDate() + days);
     return d.toISOString().slice(0, 10);
+  }
+
+  function handleSignOut() {
+    localStorage.clear();
+    window.location.reload();
   }
 
   return (
@@ -146,11 +160,21 @@ export default function DayView() {
         <Link to="/" className="nav-logo">Canvas Companion</Link>
         <ul className="nav-links">
           <li className="nav-link"><Link to="/">Home</Link></li>
-          <li className="nav-link active"><Link to={`/day/${date}`}>Day View</Link></li>
+          <li className="nav-link active"><a>Day View</a></li>
+          <li>
+            <button
+              onClick={() => setShowTA(s => !s)}
+              className={`toggle-btn ${showTA ? "active" : ""}`}
+            >
+              {showTA ? "🎓 TA On" : "🎓 TA Off"}
+            </button>
+          </li>
           <li className="status">Welcome back 🌿</li>
           <li>
-            <button onClick={() => { localStorage.clear(); window.location.reload(); }}
-              style={{ background: "#f7e4df", borderColor: "#eab5a8", color: "#6b4c3b", fontSize: "0.85rem", padding: "5px 14px" }}>
+            <button onClick={handleSignOut} style={{
+              background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)",
+              color: "rgba(232,245,238,0.8)", fontSize: "0.85rem", padding: "5px 14px",
+            }}>
               Sign Out
             </button>
           </li>
@@ -159,82 +183,105 @@ export default function DayView() {
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 24px" }}>
         {/* Date nav header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28 }}>
-          <Link to={`/day/${offsetDate(-1)}`}>
-            <button style={{ padding: "8px 16px" }}>← Prev</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
+          <Link to={`/day/${offsetDate(-7)}`}>
+            <button style={{ padding: "8px 18px" }}>← Prev week</button>
           </Link>
-          <div>
+          <div style={{ flex: 1 }}>
             <h1 style={{ margin: 0, fontSize: "1.8rem" }}>📖 Week View</h1>
-            <p style={{ margin: "4px 0 0", color: "#7a5c4a", fontStyle: "italic", fontSize: "0.9rem" }}>
-              Starting {dateLabel}
+            <p style={{ margin: "4px 0 0", color: "#4a6b57", fontStyle: "italic", fontSize: "0.9rem" }}>
+              {dateLabel} — {new Date(weekEnd.getTime() - 1).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </p>
           </div>
-          <Link to={`/day/${offsetDate(1)}`}>
-            <button style={{ padding: "8px 16px" }}>Next →</button>
-          </Link>
-          <Link to="/">
-            <button style={{ padding: "8px 16px", marginLeft: "auto" }}>← Back to Calendar</button>
+          <Link to={`/day/${offsetDate(7)}`}>
+            <button style={{ padding: "8px 18px" }}>Next week →</button>
           </Link>
         </div>
 
+        {/* Search bar */}
+        <div className="filter-bar">
+          <button onClick={load} disabled={loading} style={{
+            background: loading ? "#b0d4be" : "#39ABE9",
+            borderColor: loading ? "#b0d4be" : "#39ABE9",
+            color: "white", fontWeight: 600,
+          }}>
+            {loading ? "Loading…" : "🔄 Refresh"}
+          </button>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="🔍 Search assignments, courses…"
+            style={{ flex: "1 1 200px", minWidth: 180 }}
+          />
+          <span style={{ fontSize: "0.85rem", color: "#4a6b57", fontStyle: "italic", whiteSpace: "nowrap" }}>
+            {filtered.length} item{filtered.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 24 }}>
-          {/* Main: assignments grouped by day */}
+          {/* Main content */}
           <div>
             {error && (
-              <div style={{ padding: 14, borderRadius: 12, background: "#f7e4df", border: "1.5px solid #eab5a8", color: "#6b4c3b", marginBottom: 20 }}>
+              <div style={{
+                padding: 14, borderRadius: 12, background: "#fde8e4",
+                border: "1.5px solid #f5b8ae", color: "#6b1e1e", marginBottom: 20,
+              }}>
                 <b>Error:</b> {error}
               </div>
             )}
             {loading && (
-              <div style={{ textAlign: "center", padding: 40, color: "#7a5c4a", fontStyle: "italic" }}>
+              <div style={{ textAlign: "center", padding: 40, color: "#4a6b57", fontStyle: "italic" }}>
                 🌿 Loading assignments…
               </div>
             )}
             {!loading && !error && dayKeys.length === 0 && (
               <div className="card" style={{ textAlign: "center", padding: "60px 20px" }}>
                 <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🌸</div>
-                <p style={{ color: "#7a5c4a", fontStyle: "italic", margin: 0 }}>
+                <p style={{ color: "#4a6b57", fontStyle: "italic", margin: 0 }}>
                   No assignments due this week. Enjoy the quiet!
                 </p>
               </div>
             )}
             {!loading && !error && dayKeys.map(dayKey => (
               <div key={dayKey} style={{ marginBottom: 28 }}>
+                {/* Day header */}
                 <div style={{
                   fontFamily: "'Playfair Display', Georgia, serif",
-                  fontSize: "1.1rem", fontWeight: 700, color: "#4e6b4a",
+                  fontSize: "1.05rem", fontWeight: 700, color: "#1e3a2f",
                   marginBottom: 12, paddingBottom: 8,
-                  borderBottom: "1.5px solid #d4b896",
-                  display: "flex", alignItems: "center", gap: 8,
+                  borderBottom: "2px solid #A9DEF9",
+                  display: "flex", alignItems: "center", gap: 10,
                 }}>
                   🗓 {dayKey}
                   <span style={{
                     fontSize: "0.75rem", fontFamily: "'Lora', Georgia, serif",
-                    fontWeight: 400, background: "#e8f5e5", border: "1px solid #a8c5a0",
-                    borderRadius: 999, padding: "1px 10px", color: "#4e6b4a",
+                    fontWeight: 400, background: "#A9DEF9",
+                    borderRadius: 999, padding: "1px 10px", color: "#1e3a2f",
                   }}>
                     {grouped[dayKey].length} due
                   </span>
                 </div>
+
+                {/* Assignment cards */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {grouped[dayKey].map(x => {
                     const status = dueStatus(x.dueAt);
                     const colors = cardStyleFor(status);
                     const flags = flagsById[x.assignmentId] || [];
                     return (
-                      <div key={x.key} className="card" style={{ ...colors, padding: "14px 18px" }}>
+                      <div key={x.key} className="card fade-up" style={{ ...colors, padding: "14px 18px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{
                               fontFamily: "'Playfair Display', Georgia, serif",
-                              fontSize: "1rem", fontWeight: 700, color: "#3d2b1f",
+                              fontSize: "1rem", fontWeight: 700, color: "#1e3a2f",
                             }}>
                               {x.title}
                             </div>
-                            <div style={{ fontSize: "0.8rem", color: "#7a5c4a", marginTop: 2 }}>
+                            <div style={{ fontSize: "0.82rem", color: "#4a6b57", marginTop: 2 }}>
                               {x.courseName}
                             </div>
-                            <div style={{ fontSize: "0.8rem", color: "#7a5c4a", marginTop: 4 }}>
+                            <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 4 }}>
                               📅 {formatDue(x.dueAt)}
                             </div>
                             {flags.length > 0 && (
@@ -242,8 +289,8 @@ export default function DayView() {
                                 {flags.map((f, i) => (
                                   <span key={i} style={{
                                     padding: "1px 8px", borderRadius: 999, fontSize: "0.7rem",
-                                    background: "white", color: "#3d2b1f",
-                                    border: "1px solid rgba(0,0,0,0.08)",
+                                    background: "#A9DEF9", color: "#1e3a2f",
+                                    border: "1px solid #39ABE9",
                                   }}>
                                     {f.type.replace(/_/g, " ")}
                                   </span>
@@ -253,7 +300,7 @@ export default function DayView() {
                           </div>
                           <div style={{ textAlign: "right", flexShrink: 0 }}>
                             {x.points !== null && (
-                              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#7a5c4a" }}>
+                              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#4a6b57" }}>
                                 {x.points} pts
                               </div>
                             )}
@@ -263,7 +310,7 @@ export default function DayView() {
                                 Open ↗
                               </a>
                             ) : (
-                              <span style={{ fontSize: "0.75rem", color: "#b0956f" }}>No link</span>
+                              <span style={{ fontSize: "0.75rem", color: "#7a9b84" }}>No link</span>
                             )}
                           </div>
                         </div>
@@ -277,24 +324,32 @@ export default function DayView() {
 
           {/* Sidebar */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div className="card" style={{ background: "linear-gradient(135deg, #e8f5e5, #fdf6ec)", textAlign: "center" }}>
+            {/* Streak */}
+            <div className="card" style={{
+              background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)",
+              textAlign: "center",
+            }}>
               <Streak />
             </div>
-            <div className="card" style={{ background: "linear-gradient(135deg, #f7e4df, #fdf5d0)" }}>
-              <div className="section-title">✨ Today's Plan</div>
+
+            {/* AI Plan */}
+            <div className="card" style={{
+              background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)",
+            }}>
+              <div className="section-title">✨ This Week's Plan</div>
               {todayPlan.length === 0 ? (
-                <p style={{ color: "#7a5c4a", fontSize: "0.9rem", fontStyle: "italic" }}>
+                <p style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic" }}>
                   Nothing urgent this week 🌿
                 </p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {todayPlan.map(p => (
                     <div key={`${p.assignmentId}-${p.title}`} style={{
-                      background: "white", borderRadius: 10,
-                      border: "1.5px solid #d4b896", padding: "10px 14px",
+                      background: "#FFFCF7", borderRadius: 10,
+                      border: "1.5px solid #A9DEF9", padding: "10px 14px",
                     }}>
-                      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#3d2b1f" }}>{p.title}</div>
-                      <div style={{ fontSize: "0.8rem", color: "#7a5c4a", marginTop: 2 }}>
+                      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e3a2f" }}>{p.title}</div>
+                      <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 2 }}>
                         ⏱ {p.minutes} min · {p.reason}
                       </div>
                     </div>
