@@ -62,7 +62,10 @@ export default function DayView() {
       setLoading(true);
       setError("");
       const apiBase = typeof __API_URL__ !== "undefined" && __API_URL__ ? __API_URL__ : "";
-      const res = await fetch(`${apiBase}/api/assignments?days=30`);
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`${apiBase}/api/assignments?days=31`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`Backend error ${res.status}: ${text}`);

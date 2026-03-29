@@ -227,23 +227,23 @@ app.post("/api/register", async (req, res) => {
   }
 });
 
-// Fetch assignments from Canvas
-app.get("/api/assignments", async (req, res) => {
+// Fetch assignments from Canvas — uses the logged-in user's credentials
+app.get("/api/assignments", verifyToken, async (req, res) => {
   try {
-    const baseUrl = process.env.BASE_URL;
-    const token = process.env.API_TOKEN;
-
-    if (!baseUrl || !token) {
-      return res.status(500).json({ error: "Missing BASE_URL or API_TOKEN in .env" });
+    const user = await User.findById(req.user.userId);
+    if (!user || !user.encryptedToken || !user.canvasUrl) {
+      return res.status(401).json({ error: "User not found or Canvas credentials missing. Please sign in again." });
     }
 
+    const canvasToken = decrypt(user.encryptedToken);
+    const baseUrl = user.canvasUrl;
+
     const queryDays = req.query.days ? parseInt(req.query.days, 10) : NaN;
-    const envDays = process.env.ASSIGNMENT_DAYS ? parseInt(process.env.ASSIGNMENT_DAYS, 10) : NaN;
-    const days = Number.isFinite(queryDays) ? queryDays : Number.isFinite(envDays) ? envDays : 30;
+    const days = Number.isFinite(queryDays) ? queryDays : 31;
 
     const url = `${baseUrl}/api/v1/users/self/todo?per_page=100`;
     const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${canvasToken}` },
     });
 
     if (!response.ok) {
