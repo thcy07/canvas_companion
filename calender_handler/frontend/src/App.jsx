@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { applyMeta, buildFlagsMap, suggestTodayPlan, AI } from "./ai";
+import { applyMeta, buildFlagsMap, suggestTodayPlan, AI } from "./AI";
 import { Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
 import APIKeyWalkthroughView from "./Walkthrough";
 import DayView from "./DayView";
