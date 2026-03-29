@@ -51,7 +51,7 @@ export default function MonthlyView() {
       setError("");
       const apiBase = typeof __API_URL__ !== "undefined" && __API_URL__ ? __API_URL__ : "";
       const token = localStorage.getItem("authToken");
-      const res = await fetch(`${apiBase}/api/assignments/all?days=31`, {
+      const res = await fetch(`${apiBase}/api/assignments?days=31`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -195,7 +195,6 @@ export default function MonthlyView() {
                   {day}
                 </div>
 
-                {/* Assignment pills */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                   {dayAssignments.map((x) => {
                     const status = dueStatus(x.dueAt);
@@ -237,4 +236,3 @@ export default function MonthlyView() {
     </div>
   );
 }
- 

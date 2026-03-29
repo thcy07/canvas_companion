@@ -63,7 +63,7 @@ export default function DayView() {
       setError("");
       const apiBase = typeof __API_URL__ !== "undefined" && __API_URL__ ? __API_URL__ : "";
       const token = localStorage.getItem("authToken");
-      const res = await fetch(`${apiBase}/api/assignments/all?days=31`, {
+      const res = await fetch(`${apiBase}/api/assignments?days=31`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
