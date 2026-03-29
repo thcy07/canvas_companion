@@ -51,7 +51,7 @@ export default function MonthlyView() {
       setError("");
       const apiBase = typeof __API_URL__ !== "undefined" && __API_URL__ ? __API_URL__ : "";
       const token = localStorage.getItem("authToken");
-      const res = await fetch(`${apiBase}/api/assignments?days=31`, {
+      const res = await fetch(`${apiBase}/api/assignments/all?days=31`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -196,13 +196,19 @@ export default function MonthlyView() {
                 </div>
 
                 {/* Assignment pills */}
-                <Link to={`/day/${dateStr}`} style={{ textDecoration: "none" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                    {dayAssignments.map((x) => {
-                      const status = dueStatus(x.dueAt);
-                      const colors = cardStyleFor(status);
-                      return (
-                        <div key={x.key} style={{
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  {dayAssignments.map((x) => {
+                    const status = dueStatus(x.dueAt);
+                    const colors = cardStyleFor(status);
+                    return (
+                      <a
+                        key={x.key}
+                        href={x.url || "#"}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ textDecoration: "none" }}
+                      >
+                        <div style={{
                           ...colors,
                           borderRadius: 4,
                           padding: "3px 6px",
@@ -219,10 +225,10 @@ export default function MonthlyView() {
                             {x.title}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </Link>
+                      </a>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
