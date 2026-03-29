@@ -286,31 +286,7 @@ function HomeView() {
           </div>
         </div>
 
-        {/* Search + Sort bar */}
-        <div className="filter-bar">
-          <button onClick={load} disabled={loading} style={{
-            background: loading ? "#b0d4be" : "#39ABE9",
-            borderColor: loading ? "#b0d4be" : "#39ABE9",
-            color: "white", fontWeight: 600,
-          }}>
-            {loading ? "Loading…" : "🔄 Refresh"}
-          </button>
-          <input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="🔍 Search assignments, courses…"
-            style={{ flex: "1 1 200px", minWidth: 180 }}
-          />
-          <select value={sortMode} onChange={e => setSortMode(e.target.value)}
-            style={{ borderRadius: 999, padding: "0.5em 1em" }}>
-            <option value="due">Sort: Due date</option>
-            <option value="course">Sort: Course</option>
-          </select>
-          <span style={{ fontSize: "0.85rem", color: "#4a6b57", fontStyle: "italic", whiteSpace: "nowrap" }}>
-            {visible.length} item{visible.length !== 1 ? "s" : ""}
-          </span>
-        </div>
-
+        
         {/* Error */}
         {error && (
           <div style={{
@@ -321,7 +297,7 @@ function HomeView() {
           </div>
         )}
 
-        {/* Assignment grid */}
+        {/* Assignment grid
         {!loading && !error && (
           <div style={{
             display: "grid",
@@ -340,7 +316,7 @@ function HomeView() {
               </div>
             )}
           </div>
-        )}
+        )} */}
       </div>
       <Footer />
     </div>

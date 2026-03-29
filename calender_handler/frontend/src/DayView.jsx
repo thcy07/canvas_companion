@@ -43,6 +43,7 @@ export default function DayView() {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [showTA, setShowTA] = useState(false);
+  const [sortMode, setSortMode] = useState("due");
 
   const targetDate = useMemo(() => {
     if (date) {
@@ -119,8 +120,16 @@ export default function DayView() {
       x.title.toLowerCase().includes(q) ||
       x.courseName.toLowerCase().includes(q)
     );
-    return result;
-  }, [normalized, weekStart, weekEnd, showTA, query]);
+    return [...result].sort((a, b) => {
+      if (sortMode === "course") {
+        const c = a.courseName.localeCompare(b.courseName);
+        if (c !== 0) return c;
+      }
+      const ad = a.dueAt ? new Date(a.dueAt).getTime() : Infinity;
+      const bd = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
+      return ad - bd;
+    });
+  }, [normalized, weekStart, weekEnd, showTA, query, sortMode]);
 
   const assignmentsWithMeta = useMemo(() => applyMeta(filtered, {}), [filtered]);
   const flagsById = useMemo(() => buildFlagsMap(assignmentsWithMeta), [assignmentsWithMeta]);
@@ -207,6 +216,11 @@ export default function DayView() {
             placeholder="🔍 Search assignments, courses…"
             style={{ flex: "1 1 200px", minWidth: 180 }}
           />
+          <select value={sortMode} onChange={e => setSortMode(e.target.value)}
+            style={{ borderRadius: 999, padding: "0.5em 1em" }}>
+            <option value="due">Sort: Due date</option>
+            <option value="course">Sort: Course</option>
+          </select>
           <span style={{ fontSize: "0.85rem", color: "#4a6b57", fontStyle: "italic", whiteSpace: "nowrap" }}>
             {filtered.length} item{filtered.length !== 1 ? "s" : ""}
           </span>
