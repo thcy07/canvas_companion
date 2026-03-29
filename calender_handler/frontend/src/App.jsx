@@ -89,59 +89,59 @@ function Navbar({ showTA, setShowTA }) {
   );
 }
 
-// // ── Assignment Card ───────────────────────────────────────────────────────────
+// ── Assignment Card ───────────────────────────────────────────────────────────
 
-// function AssignmentCard({ x, flags }) {
-//   const status = dueStatus(x.dueAt);
-//   const colors = cardStyleFor(status);
+function AssignmentCard({ x, flags }) {
+  const status = dueStatus(x.dueAt);
+  const colors = cardStyleFor(status);
 
-//   return (
-//     <div className="card fade-up" style={{ ...colors, padding: "16px 20px" }}>
-//       <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-//         <div style={{ flex: 1, minWidth: 0 }}>
-//           <div style={{
-//             fontFamily: "'Playfair Display', Georgia, serif",
-//             fontSize: "1rem", fontWeight: 700, color: "#1e3a2f",
-//             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-//           }}>
-//             {x.title}
-//           </div>
-//           <div style={{ fontSize: "0.82rem", color: "#4a6b57", marginTop: 2 }}>
-//             {x.courseName}
-//           </div>
-//           <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 4 }}>
-//             📅 {formatDue(x.dueAt)}
-//           </div>
-//           {flags && flags.length > 0 && (
-//             <div style={{ marginTop: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
-//               {flags.map((f, i) => (
-//                 <span key={i} style={{
-//                   padding: "1px 8px", borderRadius: 999, fontSize: "0.7rem",
-//                   background: "#A9DEF9", color: "#1e3a2f", border: "1px solid #39ABE9",
-//                 }}>
-//                   {f.type.replace(/_/g, " ")}
-//                 </span>
-//               ))}
-//             </div>
-//           )}
-//         </div>
-//         <div style={{ textAlign: "right", fontSize: "0.8rem", color: "#4a6b57", flexShrink: 0 }}>
-//           {x.points !== null && (
-//             <div style={{ fontWeight: 600 }}>{x.points} pts</div>
-//           )}
-//           {x.url ? (
-//             <a className="canvas-link" href={x.url} target="_blank" rel="noreferrer"
-//               style={{ display: "inline-block", marginTop: 8 }}>
-//               Open ↗
-//             </a>
-//           ) : (
-//             <span style={{ fontSize: "0.75rem", color: "#7a9b84" }}>No link</span>
-//           )}
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
+  return (
+    <div className="card fade-up" style={{ ...colors, padding: "16px 20px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontSize: "1rem", fontWeight: 700, color: "#1e3a2f",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {x.title}
+          </div>
+          <div style={{ fontSize: "0.82rem", color: "#4a6b57", marginTop: 2 }}>
+            {x.courseName}
+          </div>
+          <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 4 }}>
+            📅 {formatDue(x.dueAt)}
+          </div>
+          {flags && flags.length > 0 && (
+            <div style={{ marginTop: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {flags.map((f, i) => (
+                <span key={i} style={{
+                  padding: "1px 8px", borderRadius: 999, fontSize: "0.7rem",
+                  background: "#A9DEF9", color: "#1e3a2f", border: "1px solid #39ABE9",
+                }}>
+                  {f.type.replace(/_/g, " ")}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ textAlign: "right", fontSize: "0.8rem", color: "#4a6b57", flexShrink: 0 }}>
+          {x.points !== null && (
+            <div style={{ fontWeight: 600 }}>{x.points} pts</div>
+          )}
+          {x.url ? (
+            <a className="canvas-link" href={x.url} target="_blank" rel="noreferrer"
+              style={{ display: "inline-block", marginTop: 8 }}>
+              Open ↗
+            </a>
+          ) : (
+            <span style={{ fontSize: "0.75rem", color: "#7a9b84" }}>No link</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Home View ─────────────────────────────────────────────────────────────────
 
@@ -321,7 +321,7 @@ function HomeView() {
           </div>
         )}
 
-        {/* Assignment grid */}
+        {/* Assignment grid
         {!loading && !error && (
           <div style={{
             display: "grid",
@@ -340,7 +340,7 @@ function HomeView() {
               </div>
             )}
           </div>
-        )}
+        )} */}
       </div>
       <Footer />
     </div>
