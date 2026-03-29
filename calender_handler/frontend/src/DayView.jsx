@@ -107,14 +107,12 @@ export default function DayView() {
     return d;
   }, [weekStart]);
 
-  const weekItems = useMemo(() => normalized.filter(x => {
-    if (!x.dueAt) return false;
-    const due = new Date(x.dueAt);
-    return due >= weekStart && due < weekEnd;
-  }), [normalized, weekStart, weekEnd]);
-
   const filtered = useMemo(() => {
-    let result = weekItems;
+    let result = normalized.filter(x => {
+      if (!x.dueAt) return false;
+      const due = new Date(x.dueAt);
+      return due >= weekStart && due < weekEnd;
+    });
     if (!showTA) result = result.filter(x => !(typeof x.type === "string" && x.type.toLowerCase() === "grading"));
     const q = query.trim().toLowerCase();
     if (q) result = result.filter(x =>
@@ -122,7 +120,7 @@ export default function DayView() {
       x.courseName.toLowerCase().includes(q)
     );
     return result;
-  }, [weekItems, showTA, query]);
+  }, [normalized, weekStart, weekEnd, showTA, query]);
 
   const assignmentsWithMeta = useMemo(() => applyMeta(filtered, {}), [filtered]);
   const flagsById = useMemo(() => buildFlagsMap(assignmentsWithMeta), [assignmentsWithMeta]);
@@ -150,22 +148,18 @@ export default function DayView() {
 
   function handleSignOut() {
     localStorage.clear();
-    window.location.reload();
+    window.location.href = "/";
   }
 
   return (
     <div style={{ minHeight: "100vh" }}>
-      {/* Navbar */}
       <nav className="navbar">
         <Link to="/" className="nav-logo">Canvas Companion</Link>
         <ul className="nav-links">
           <li className="nav-link"><Link to="/">Home</Link></li>
           <li className="nav-link active"><a>Day View</a></li>
           <li>
-            <button
-              onClick={() => setShowTA(s => !s)}
-              className={`toggle-btn ${showTA ? "active" : ""}`}
-            >
+            <button onClick={() => setShowTA(s => !s)} className={`toggle-btn ${showTA ? "active" : ""}`}>
               {showTA ? "🎓 TA On" : "🎓 TA Off"}
             </button>
           </li>
@@ -198,12 +192,12 @@ export default function DayView() {
           </Link>
         </div>
 
-      {/* Search + Sort bar */}
+        {/* Search bar */}
         <div className="filter-bar">
           <button onClick={load} disabled={loading} style={{
-            background: loading ? "#b0d4be" : "#39ABE9",
-            borderColor: loading ? "#b0d4be" : "#39ABE9",
-            color: "white", fontWeight: 600,
+            background: loading ? "#b0d4be" : "#bde0fe",
+            borderColor: loading ? "#b0d4be" : "#bde0fe",
+            color: "#1e3a2f", fontWeight: 600,
           }}>
             {loading ? "Loading…" : "🔄 Refresh"}
           </button>
@@ -213,13 +207,8 @@ export default function DayView() {
             placeholder="🔍 Search assignments, courses…"
             style={{ flex: "1 1 200px", minWidth: 180 }}
           />
-          <select value={sortMode} onChange={e => setSortMode(e.target.value)}
-            style={{ borderRadius: 999, padding: "0.5em 1em" }}>
-            <option value="due">Sort: Due date</option>
-            <option value="course">Sort: Course</option>
-          </select>
           <span style={{ fontSize: "0.85rem", color: "#4a6b57", fontStyle: "italic", whiteSpace: "nowrap" }}>
-            {visible.length} item{visible.length !== 1 ? "s" : ""}
+            {filtered.length} item{filtered.length !== 1 ? "s" : ""}
           </span>
         </div>
 
@@ -249,7 +238,6 @@ export default function DayView() {
             )}
             {!loading && !error && dayKeys.map(dayKey => (
               <div key={dayKey} style={{ marginBottom: 28 }}>
-                {/* Day header */}
                 <div style={{
                   fontFamily: "'Playfair Display', Georgia, serif",
                   fontSize: "1.05rem", fontWeight: 700, color: "#1e3a2f",
@@ -266,8 +254,6 @@ export default function DayView() {
                     {grouped[dayKey].length} due
                   </span>
                 </div>
-
-                {/* Assignment cards */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {grouped[dayKey].map(x => {
                     const status = dueStatus(x.dueAt);
@@ -283,19 +269,14 @@ export default function DayView() {
                             }}>
                               {x.title}
                             </div>
-                            <div style={{ fontSize: "0.82rem", color: "#4a6b57", marginTop: 2 }}>
-                              {x.courseName}
-                            </div>
-                            <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 4 }}>
-                              📅 {formatDue(x.dueAt)}
-                            </div>
+                            <div style={{ fontSize: "0.82rem", color: "#4a6b57", marginTop: 2 }}>{x.courseName}</div>
+                            <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 4 }}>📅 {formatDue(x.dueAt)}</div>
                             {flags.length > 0 && (
                               <div style={{ marginTop: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
                                 {flags.map((f, i) => (
                                   <span key={i} style={{
                                     padding: "1px 8px", borderRadius: 999, fontSize: "0.7rem",
-                                    background: "#A9DEF9", color: "#1e3a2f",
-                                    border: "1px solid #39ABE9",
+                                    background: "#A9DEF9", color: "#1e3a2f", border: "1px solid #bde0fe",
                                   }}>
                                     {f.type.replace(/_/g, " ")}
                                   </span>
@@ -305,15 +286,11 @@ export default function DayView() {
                           </div>
                           <div style={{ textAlign: "right", flexShrink: 0 }}>
                             {x.points !== null && (
-                              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#4a6b57" }}>
-                                {x.points} pts
-                              </div>
+                              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#4a6b57" }}>{x.points} pts</div>
                             )}
                             {x.url ? (
                               <a className="canvas-link" href={x.url} target="_blank" rel="noreferrer"
-                                style={{ display: "inline-block", marginTop: 8 }}>
-                                Open ↗
-                              </a>
+                                style={{ display: "inline-block", marginTop: 8 }}>Open ↗</a>
                             ) : (
                               <span style={{ fontSize: "0.75rem", color: "#7a9b84" }}>No link</span>
                             )}
@@ -329,23 +306,13 @@ export default function DayView() {
 
           {/* Sidebar */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {/* Streak */}
-            <div className="card" style={{
-              background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)",
-              textAlign: "center",
-            }}>
+            <div className="card" style={{ background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)", textAlign: "center" }}>
               <Streak />
             </div>
-
-            {/* AI Plan */}
-            <div className="card" style={{
-              background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)",
-            }}>
+            <div className="card" style={{ background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)" }}>
               <div className="section-title">✨ This Week's Plan</div>
               {todayPlan.length === 0 ? (
-                <p style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic" }}>
-                  Nothing urgent this week 🌿
-                </p>
+                <p style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic" }}>Nothing urgent this week 🌿</p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {todayPlan.map(p => (
@@ -354,9 +321,7 @@ export default function DayView() {
                       border: "1.5px solid #A9DEF9", padding: "10px 14px",
                     }}>
                       <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e3a2f" }}>{p.title}</div>
-                      <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 2 }}>
-                        ⏱ {p.minutes} min · {p.reason}
-                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 2 }}>⏱ {p.minutes} min · {p.reason}</div>
                     </div>
                   ))}
                 </div>
