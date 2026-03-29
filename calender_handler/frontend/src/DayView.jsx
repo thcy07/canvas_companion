@@ -198,7 +198,7 @@ export default function DayView() {
           </Link>
         </div>
 
-        {/* Search bar */}
+      {/* Search + Sort bar */}
         <div className="filter-bar">
           <button onClick={load} disabled={loading} style={{
             background: loading ? "#b0d4be" : "#39ABE9",
@@ -213,8 +213,13 @@ export default function DayView() {
             placeholder="🔍 Search assignments, courses…"
             style={{ flex: "1 1 200px", minWidth: 180 }}
           />
+          <select value={sortMode} onChange={e => setSortMode(e.target.value)}
+            style={{ borderRadius: 999, padding: "0.5em 1em" }}>
+            <option value="due">Sort: Due date</option>
+            <option value="course">Sort: Course</option>
+          </select>
           <span style={{ fontSize: "0.85rem", color: "#4a6b57", fontStyle: "italic", whiteSpace: "nowrap" }}>
-            {filtered.length} item{filtered.length !== 1 ? "s" : ""}
+            {visible.length} item{visible.length !== 1 ? "s" : ""}
           </span>
         </div>
 
