@@ -241,7 +241,7 @@ app.get("/api/assignments", verifyToken, async (req, res) => {
     const queryDays = req.query.days ? parseInt(req.query.days, 10) : NaN;
     const days = Number.isFinite(queryDays) ? queryDays : 31;
 
-    const url = `${baseUrl}/api/v1/users/self/todo?per_page=100`;
+    const url = `${baseUrl}/api/v1/users/self/todo?per_page=10000`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${canvasToken}` },
     });
