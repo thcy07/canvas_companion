@@ -38,6 +38,92 @@ async function subscribeToPush(apiBase: string): Promise<PushSubscription | null
   }
 }
 
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: 10,
+  border: "2px solid #e0e0e0",
+  fontSize: 15,
+  outline: "none",
+  boxSizing: "border-box",
+  fontFamily: "Georgia, serif",
+  transition: "border-color 0.2s",
+  color: "#111",
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontWeight: 700,
+  fontSize: 14,
+  marginBottom: 6,
+  color: "#222",
+};
+
+const fieldStyle: React.CSSProperties = { marginBottom: 18 };
+
+function CardShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "linear-gradient(135deg, #0b63ff 0%, #003494 100%)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontFamily: "Georgia, serif", padding: "24px",
+    }}>
+      <div style={{
+        background: "white", borderRadius: 20, padding: "48px 40px",
+        maxWidth: 480, width: "100%",
+        boxShadow: "0 24px 80px rgba(0,0,0,0.3)",
+      }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 48, marginBottom: 8 }}>🎓</div>
+          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: "#0b63ff", fontFamily: "Georgia, serif" }}>
+            Canvas Companion
+          </h1>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ErrorBox({ msg }: { msg: string }) {
+  if (!msg) return null;
+  return (
+    <div style={{
+      background: "#fff0f0", border: "1px solid #ffcccc",
+      borderRadius: 10, padding: "12px 14px", marginBottom: 18,
+      fontSize: 13, color: "#c00",
+    }}>
+      {msg}
+    </div>
+  );
+}
+
+function PrimaryBtn({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={{
+      width: "100%", padding: "14px", borderRadius: 12, border: "none",
+      background: "#0b63ff", color: "white", fontSize: 16, fontWeight: 700,
+      cursor: "pointer", fontFamily: "Georgia, serif", marginTop: 4,
+    }}>
+      {label}
+    </button>
+  );
+}
+
+function OutlineBtn({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={{
+      width: "100%", padding: "14px", borderRadius: 12,
+      border: "2px solid #0b63ff", background: "white",
+      color: "#0b63ff", fontSize: 16, fontWeight: 700,
+      cursor: "pointer", fontFamily: "Georgia, serif", marginTop: 12,
+    }}>
+      {label}
+    </button>
+  );
+}
+
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const [screen, setScreen] = useState<Screen>("welcome");
   const [errorMsg, setErrorMsg] = useState("");
@@ -53,11 +139,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [suCanvasUrl, setSuCanvasUrl] = useState("");
   const [suCanvasToken, setSuCanvasToken] = useState("");
 
-  function clearError() {
-    setErrorMsg("");
-  }
-
-  // ── Sign In ────────────────────────────────────────────────────────────────
+  function clearError() { setErrorMsg(""); }
+  function go(s: Screen) { clearError(); setScreen(s); }
 
   async function handleSignIn() {
     if (!siEmail.trim() || !siPassword.trim()) {
@@ -65,7 +148,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       return;
     }
     setScreen("loading");
-    setErrorMsg("");
     try {
       const apiBase = getApiBase();
       const res = await fetch(`${apiBase}/api/auth/signin`, {
@@ -76,33 +158,25 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Sign in failed.");
 
-      // Save JWT + canvas info
       localStorage.setItem("authToken", data.token);
       localStorage.setItem("canvasUrl", data.canvasUrl || "");
       localStorage.setItem("canvasToken", data.canvasToken || "");
       localStorage.setItem("setupComplete", "true");
 
-      // Re-subscribe to push in background (new device may need fresh subscription)
       const pushSub = await subscribeToPush(apiBase);
       if (pushSub && data.token) {
         await fetch(`${apiBase}/api/auth/update-push`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${data.token}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.token}` },
           body: JSON.stringify({ pushSubscription: pushSub }),
         });
       }
-
       onComplete();
     } catch (err: any) {
       setErrorMsg(err.message || "Something went wrong.");
       setScreen("signin");
     }
   }
-
-  // ── Sign Up Step 1 → Step 2 ───────────────────────────────────────────────
 
   function handleSignUpNext() {
     if (!suEmail.trim() || !suPassword.trim() || !suConfirm.trim()) {
@@ -117,11 +191,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       setErrorMsg("Password must be at least 8 characters.");
       return;
     }
-    clearError();
-    setScreen("signup-canvas");
+    go("signup-canvas");
   }
-
-  // ── Sign Up Step 2 → Done ─────────────────────────────────────────────────
 
   async function handleSignUpSubmit() {
     if (!suCanvasUrl.trim() || !suCanvasToken.trim()) {
@@ -129,11 +200,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       return;
     }
     setScreen("loading");
-    setErrorMsg("");
     try {
       const apiBase = getApiBase();
       const pushSub = await subscribeToPush(apiBase);
-
       const res = await fetch(`${apiBase}/api/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -151,7 +220,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       localStorage.setItem("authToken", data.token);
       localStorage.setItem("canvasUrl", data.canvasUrl || "");
       localStorage.setItem("setupComplete", "true");
-
       onComplete();
     } catch (err: any) {
       setErrorMsg(err.message || "Something went wrong.");
@@ -159,235 +227,116 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     }
   }
 
-  // ── Shared input style ─────────────────────────────────────────────────────
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "12px 14px",
-    borderRadius: 10,
-    border: "2px solid #e0e0e0",
-    fontSize: 15,
-    outline: "none",
-    boxSizing: "border-box",
-    fontFamily: "inherit",
-    transition: "border-color 0.2s",
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    fontWeight: 700,
-    fontSize: 14,
-    marginBottom: 6,
-    color: "#222",
-  };
-
-  const fieldStyle: React.CSSProperties = { marginBottom: 18 };
-
-  function InputField({
-    label, type = "text", value, onChange, placeholder, hint,
-  }: {
-    label: string; type?: string; value: string;
-    onChange: (v: string) => void; placeholder?: string; hint?: string;
-  }) {
-    return (
-      <div style={fieldStyle}>
-        <label style={labelStyle}>{label}</label>
-        <input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          style={inputStyle}
-          onFocus={(e) => (e.target.style.borderColor = "#0b63ff")}
-          onBlur={(e) => (e.target.style.borderColor = "#e0e0e0")}
-        />
-        {hint && <p style={{ margin: "5px 0 0", fontSize: 12, color: "#888" }}>{hint}</p>}
-      </div>
-    );
-  }
-
-  function PrimaryButton({ label, onClick }: { label: string; onClick: () => void }) {
-    return (
-      <button
-        onClick={onClick}
-        style={{
-          width: "100%",
-          padding: "14px",
-          borderRadius: 12,
-          border: "none",
-          background: "#0b63ff",
-          color: "white",
-          fontSize: 16,
-          fontWeight: 700,
-          cursor: "pointer",
-          fontFamily: "inherit",
-          marginTop: 4,
-        }}
-      >
-        {label}
-      </button>
-    );
-  }
-
-  function ErrorBox({ msg }: { msg: string }) {
-    if (!msg) return null;
-    return (
-      <div style={{
-        background: "#fff0f0", border: "1px solid #ffcccc",
-        borderRadius: 10, padding: "12px 14px", marginBottom: 18,
-        fontSize: 13, color: "#c00",
-      }}>
-        {msg}
-      </div>
-    );
-  }
-
-  // ── Layout wrapper ─────────────────────────────────────────────────────────
-
-  function Card({ children }: { children: React.ReactNode }) {
-    return (
-      <div style={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #0b63ff 0%, #003494 100%)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontFamily: "'Georgia', serif", padding: "24px",
-      }}>
-        <div style={{
-          background: "white", borderRadius: 20, padding: "48px 40px",
-          maxWidth: 480, width: "100%",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.3)",
-        }}>
-          <div style={{ textAlign: "center", marginBottom: 32 }}>
-            <div style={{ fontSize: 48, marginBottom: 8 }}>🎓</div>
-            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: "#0b63ff", fontFamily: "inherit" }}>
-              Canvas Companion
-            </h1>
-          </div>
-          {children}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Screens ────────────────────────────────────────────────────────────────
-
   if (screen === "loading") {
     return (
-      <Card>
-        <p style={{ textAlign: "center", color: "#555", fontSize: 16 }}>
-          ⏳ Please wait…
-        </p>
-      </Card>
+      <CardShell>
+        <p style={{ textAlign: "center", color: "#555", fontSize: 16 }}>⏳ Please wait…</p>
+      </CardShell>
     );
   }
 
   if (screen === "welcome") {
     return (
-      <Card>
+      <CardShell>
         <p style={{ textAlign: "center", color: "#555", fontSize: 15, marginBottom: 32 }}>
           Get notified about assignments due within 24 hours — even when the tab is closed.
         </p>
-        <PrimaryButton label="Sign In" onClick={() => { clearError(); setScreen("signin"); }} />
-        <button
-          onClick={() => { clearError(); setScreen("signup-account"); }}
-          style={{
-            width: "100%", padding: "14px", borderRadius: 12,
-            border: "2px solid #0b63ff", background: "white",
-            color: "#0b63ff", fontSize: 16, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit", marginTop: 12,
-          }}
-        >
-          Create Account
-        </button>
-      </Card>
+        <PrimaryBtn label="Sign In" onClick={() => go("signin")} />
+        <OutlineBtn label="Create Account" onClick={() => go("signup-account")} />
+      </CardShell>
     );
   }
 
   if (screen === "signin") {
     return (
-      <Card>
+      <CardShell>
         <h2 style={{ margin: "0 0 24px", fontSize: 22, color: "#111" }}>Sign In</h2>
         <ErrorBox msg={errorMsg} />
-        <InputField label="Email" type="email" value={siEmail} onChange={setSiEmail} placeholder="you@university.edu" />
-        <InputField label="Password" type="password" value={siPassword} onChange={setSiPassword} placeholder="Your password" />
-        <PrimaryButton label="Sign In" onClick={handleSignIn} />
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Email</label>
+          <input type="email" value={siEmail} onChange={(e) => setSiEmail(e.target.value)}
+            placeholder="you@university.edu" style={inputStyle}
+            onFocus={(e) => (e.target.style.borderColor = "#0b63ff")}
+            onBlur={(e) => (e.target.style.borderColor = "#e0e0e0")} />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Password</label>
+          <input type="password" value={siPassword} onChange={(e) => setSiPassword(e.target.value)}
+            placeholder="Your password" style={inputStyle}
+            onFocus={(e) => (e.target.style.borderColor = "#0b63ff")}
+            onBlur={(e) => (e.target.style.borderColor = "#e0e0e0")} />
+        </div>
+        <PrimaryBtn label="Sign In" onClick={handleSignIn} />
         <p style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "#555" }}>
           Don't have an account?{" "}
-          <span
-            onClick={() => { clearError(); setScreen("signup-account"); }}
-            style={{ color: "#0b63ff", cursor: "pointer", fontWeight: 700 }}
-          >
-            Sign Up
-          </span>
+          <span onClick={() => go("signup-account")} style={{ color: "#0b63ff", cursor: "pointer", fontWeight: 700 }}>Sign Up</span>
         </p>
-        <p style={{ textAlign: "center", marginTop: 4, fontSize: 13, color: "#555" }}>
-          <span
-            onClick={() => { clearError(); setScreen("welcome"); }}
-            style={{ color: "#999", cursor: "pointer" }}
-          >
-            ← Back
-          </span>
+        <p style={{ textAlign: "center", marginTop: 4, fontSize: 13 }}>
+          <span onClick={() => go("welcome")} style={{ color: "#999", cursor: "pointer" }}>← Back</span>
         </p>
-      </Card>
+      </CardShell>
     );
   }
 
   if (screen === "signup-account") {
     return (
-      <Card>
+      <CardShell>
         <h2 style={{ margin: "0 0 6px", fontSize: 22, color: "#111" }}>Create Account</h2>
         <p style={{ margin: "0 0 24px", fontSize: 13, color: "#888" }}>Step 1 of 2 — Account details</p>
         <ErrorBox msg={errorMsg} />
-        <InputField label="Email" type="email" value={suEmail} onChange={setSuEmail} placeholder="you@university.edu" />
-        <InputField label="Password" type="password" value={suPassword} onChange={setSuPassword} placeholder="At least 8 characters" />
-        <InputField label="Confirm Password" type="password" value={suConfirm} onChange={setSuConfirm} placeholder="Repeat your password" />
-        <PrimaryButton label="Next →" onClick={handleSignUpNext} />
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Email</label>
+          <input type="email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)}
+            placeholder="you@university.edu" style={inputStyle}
+            onFocus={(e) => (e.target.style.borderColor = "#0b63ff")}
+            onBlur={(e) => (e.target.style.borderColor = "#e0e0e0")} />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Password</label>
+          <input type="password" value={suPassword} onChange={(e) => setSuPassword(e.target.value)}
+            placeholder="At least 8 characters" style={inputStyle}
+            onFocus={(e) => (e.target.style.borderColor = "#0b63ff")}
+            onBlur={(e) => (e.target.style.borderColor = "#e0e0e0")} />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Confirm Password</label>
+          <input type="password" value={suConfirm} onChange={(e) => setSuConfirm(e.target.value)}
+            placeholder="Repeat your password" style={inputStyle}
+            onFocus={(e) => (e.target.style.borderColor = "#0b63ff")}
+            onBlur={(e) => (e.target.style.borderColor = "#e0e0e0")} />
+        </div>
+        <PrimaryBtn label="Next →" onClick={handleSignUpNext} />
         <p style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "#555" }}>
           Already have an account?{" "}
-          <span
-            onClick={() => { clearError(); setScreen("signin"); }}
-            style={{ color: "#0b63ff", cursor: "pointer", fontWeight: 700 }}
-          >
-            Sign In
-          </span>
+          <span onClick={() => go("signin")} style={{ color: "#0b63ff", cursor: "pointer", fontWeight: 700 }}>Sign In</span>
         </p>
-        <p style={{ textAlign: "center", marginTop: 4, fontSize: 13, color: "#555" }}>
-          <span
-            onClick={() => { clearError(); setScreen("welcome"); }}
-            style={{ color: "#999", cursor: "pointer" }}
-          >
-            ← Back
-          </span>
+        <p style={{ textAlign: "center", marginTop: 4, fontSize: 13 }}>
+          <span onClick={() => go("welcome")} style={{ color: "#999", cursor: "pointer" }}>← Back</span>
         </p>
-      </Card>
+      </CardShell>
     );
   }
 
   if (screen === "signup-canvas") {
     return (
-      <Card>
+      <CardShell>
         <h2 style={{ margin: "0 0 6px", fontSize: 22, color: "#111" }}>Connect Canvas</h2>
         <p style={{ margin: "0 0 24px", fontSize: 13, color: "#888" }}>Step 2 of 2 — Canvas credentials</p>
         <ErrorBox msg={errorMsg} />
-        <InputField
-          label="Your Canvas URL"
-          type="url"
-          value={suCanvasUrl}
-          onChange={setSuCanvasUrl}
-          placeholder="https://canvas.youruniversity.edu"
-          hint="Example: https://canvas.byu.edu"
-        />
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Your Canvas URL</label>
+          <input type="url" value={suCanvasUrl} onChange={(e) => setSuCanvasUrl(e.target.value)}
+            placeholder="https://canvas.youruniversity.edu" style={inputStyle}
+            onFocus={(e) => (e.target.style.borderColor = "#0b63ff")}
+            onBlur={(e) => (e.target.style.borderColor = "#e0e0e0")} />
+          <p style={{ margin: "5px 0 0", fontSize: 12, color: "#888" }}>Example: https://canvas.byu.edu</p>
+        </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>Canvas API Token</label>
-          <input
-            type="password"
-            value={suCanvasToken}
-            onChange={(e) => setSuCanvasToken(e.target.value)}
-            placeholder="Paste your Canvas API token here"
-            style={inputStyle}
+          <input type="password" value={suCanvasToken} onChange={(e) => setSuCanvasToken(e.target.value)}
+            placeholder="Paste your Canvas API token here" style={inputStyle}
             onFocus={(e) => (e.target.style.borderColor = "#0b63ff")}
-            onBlur={(e) => (e.target.style.borderColor = "#e0e0e0")}
-          />
+            onBlur={(e) => (e.target.style.borderColor = "#e0e0e0")} />
         </div>
         <details style={{ marginBottom: 20 }}>
           <summary style={{ fontSize: 13, color: "#0b63ff", cursor: "pointer", userSelect: "none" }}>
@@ -403,22 +352,16 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           </ol>
         </details>
         <div style={{
-          background: "#f0f7ff", border: "1px solid #d0e8ff",
-          borderRadius: 10, padding: "12px 14px", marginBottom: 20,
-          fontSize: 13, color: "#444",
+          background: "#f0f7ff", border: "1px solid #d0e8ff", borderRadius: 10,
+          padding: "12px 14px", marginBottom: 20, fontSize: 13, color: "#444",
         }}>
           🔒 Your token is <b>encrypted</b> before being stored. It is never shared or sold.
         </div>
-        <PrimaryButton label="Create Account & Get Started" onClick={handleSignUpSubmit} />
-        <p style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "#555" }}>
-          <span
-            onClick={() => { clearError(); setScreen("signup-account"); }}
-            style={{ color: "#999", cursor: "pointer" }}
-          >
-            ← Back
-          </span>
+        <PrimaryBtn label="Create Account & Get Started" onClick={handleSignUpSubmit} />
+        <p style={{ textAlign: "center", marginTop: 16, fontSize: 13 }}>
+          <span onClick={() => go("signup-account")} style={{ color: "#999", cursor: "pointer" }}>← Back</span>
         </p>
-      </Card>
+      </CardShell>
     );
   }
 
