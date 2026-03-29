@@ -55,7 +55,8 @@ export default function MonthlyView() {
       setLoading(true);
       setError("");
 
-      const res = await fetch("/api/assignments?days=30");
+      const apiBase = typeof __API_URL__ !== "undefined" && __API_URL__ ? __API_URL__ : "";
+      const res = await fetch(`${apiBase}/api/assignments?days=30`);
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`Backend error ${res.status}: ${text}`);

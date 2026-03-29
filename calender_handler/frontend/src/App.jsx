@@ -10,20 +10,14 @@ import "./App.css";
 import Notification from "./Notification";
 import Onboarding from "./Onboarding";
 
-function HomeView({
-  // visible,
-  // loading,
-  // error,
-  // load,
-  // query,
-  // setQuery,
-  // sortMode,
-  // setSortMode,
-  // showTA,
-  // setShowTA,
-  // todayPlan,
-  // flagsById,
-}) {
+function HomeView() {
+  const [setupComplete, setSetupComplete] = useState(
+    () => localStorage.getItem("setupComplete") === "true"
+  );
+
+  if (!setupComplete) {
+    return <Onboarding onComplete={() => setSetupComplete(true)} />;
+  }
   // Raw items returned from backend (Canvas API results)
   const [items, setItems] = useState([]);
 
@@ -73,13 +67,7 @@ function HomeView({
     load();
   }, []);
 
-  const [setupComplete, setSetupComplete] = useState(
-  () => localStorage.getItem("setupComplete") === "true"
-);
 
-if (!setupComplete) {
-  return <Onboarding onComplete={() => setSetupComplete(true)} />;
-}
 
   /**
    * normalized
