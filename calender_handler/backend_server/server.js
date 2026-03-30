@@ -6,39 +6,88 @@ import dotenv from "dotenv";
 import cors from "cors";
 import webpush from "web-push";
 import cron from "node-cron";
+import mongoose from "mongoose";
+import crypto from "crypto";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
 dotenv.config();
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-// Configure VAPID
+// ─── Encryption helpers (AES-256-GCM) ────────────────────────────────────────
+
+function encrypt(text) {
+  const iv = crypto.randomBytes(12);
+  const key = Buffer.from(process.env.ENCRYPTION_SECRET.padEnd(32).slice(0, 32));
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString("hex")}:${tag.toString("hex")}:${encrypted.toString("hex")}`;
+}
+
+function decrypt(data) {
+  const [ivHex, tagHex, encryptedHex] = data.split(":");
+  const iv = Buffer.from(ivHex, "hex");
+  const tag = Buffer.from(tagHex, "hex");
+  const encrypted = Buffer.from(encryptedHex, "hex");
+  const key = Buffer.from(process.env.ENCRYPTION_SECRET.padEnd(32).slice(0, 32));
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  return decipher.update(encrypted) + decipher.final("utf8");
+}
+
+// ─── JWT helper ───────────────────────────────────────────────────────────────
+
+function signToken(userId) {
+  return jwt.sign({ userId: String(userId) }, process.env.JWT_SECRET, { expiresIn: "30d" });
+}
+
+function verifyToken(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Missing or invalid token" });
+  }
+  try {
+    req.user = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ error: "Token expired or invalid" });
+  }
+}
+
+// ─── MongoDB Schema ───────────────────────────────────────────────────────────
+
+const userSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  passwordHash: { type: String, required: true },
+  canvasUrl: { type: String },
+  encryptedToken: { type: String },
+  pushSubscription: { type: Object },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+const User = mongoose.model("User", userSchema);
+
+// ─── Configure VAPID ─────────────────────────────────────────────────────────
+
 webpush.setVapidDetails(
   process.env.VAPID_MAILTO,
   process.env.VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
 
-// In-memory subscription store (swap for a DB in production)
-const subscriptions = new Set();
-
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 app.get("/health", (req, res) => {
-  res.status(200).json({
+  res.json({
     ok: true,
     status: "healthy",
     uptimeSeconds: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
-  });
-});
-
-app.get("/debug/env", (req, res) => {
-  res.json({
-    hasApiToken: Boolean(process.env.API_TOKEN),
-    nodeEnv: process.env.NODE_ENV || "development",
   });
 });
 
@@ -47,49 +96,159 @@ app.get("/api/vapid-public-key", (req, res) => {
   res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
 });
 
-// Save push subscription from frontend
-app.post("/api/subscribe", (req, res) => {
-  const sub = req.body;
-  subscriptions.add(JSON.stringify(sub));
-  console.log("New subscription saved. Total:", subscriptions.size);
-  res.json({ ok: true });
-});
+// ─── Auth: Sign Up ────────────────────────────────────────────────────────────
 
-// Manual test reminder
-app.get("/api/test-reminder", (req, res) => {
-  res.json({
-    title: "Assignment Due Soon",
-    body: "Your Math assignment is due in 1 hour.",
-    url: "/",
-  });
-});
-
-// Fetch assignments from Canvas
-app.get("/api/assignments", async (req, res) => {
+app.post("/api/auth/signup", async (req, res) => {
   try {
-    const baseUrl = process.env.BASE_URL;
-    const token = process.env.API_TOKEN;
+    const { email, password, canvasUrl, canvasToken, pushSubscription } = req.body;
 
-    if (!baseUrl || !token) {
-      return res.status(500).json({ error: "Missing BASE_URL or API_TOKEN in .env" });
+    if (!email || !password || !canvasUrl || !canvasToken) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const queryDays = req.query.days ? parseInt(req.query.days, 10) : NaN;
-    const envDays = process.env.ASSIGNMENT_DAYS ? parseInt(process.env.ASSIGNMENT_DAYS, 10) : NaN;
-    const days = Number.isFinite(queryDays) ? queryDays : Number.isFinite(envDays) ? envDays : 30;
+    const existing = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existing) {
+      return res.status(409).json({ error: "An account with this email already exists." });
+    }
 
-    const url = `${baseUrl}/api/v1/users/self/todo?per_page=100`;
+    const normalizedUrl = canvasUrl.replace(/\/$/, "");
+
+    // Verify Canvas token works
+    const testRes = await fetch(`${normalizedUrl}/api/v1/users/self`, {
+      headers: { Authorization: `Bearer ${canvasToken}` },
+    });
+    if (!testRes.ok) {
+      return res.status(401).json({ error: "Invalid Canvas URL or API token. Please check and try again." });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const encryptedToken = encrypt(canvasToken);
+
+    const user = await User.create({
+      email: email.toLowerCase().trim(),
+      passwordHash,
+      canvasUrl: normalizedUrl,
+      encryptedToken,
+      pushSubscription: pushSubscription || null,
+    });
+
+    const token = signToken(user._id);
+    res.json({ ok: true, token, canvasUrl: normalizedUrl });
+  } catch (err) {
+    console.error("Signup error:", err);
+    res.status(500).json({ error: "Server error", details: String(err) });
+  }
+});
+
+// ─── Auth: Sign In ────────────────────────────────────────────────────────────
+
+app.post("/api/auth/signin", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Missing email or password" });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    const token = signToken(user._id);
+    const canvasToken = user.encryptedToken ? decrypt(user.encryptedToken) : null;
+
+    res.json({
+      ok: true,
+      token,
+      canvasUrl: user.canvasUrl,
+      canvasToken,
+    });
+  } catch (err) {
+    console.error("Signin error:", err);
+    res.status(500).json({ error: "Server error", details: String(err) });
+  }
+});
+
+// ─── Auth: Update push subscription (called after sign in on new device) ─────
+
+app.post("/api/auth/update-push", verifyToken, async (req, res) => {
+  try {
+    const { pushSubscription } = req.body;
+    await User.findByIdAndUpdate(req.user.userId, { pushSubscription, updatedAt: new Date() });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Server error", details: String(err) });
+  }
+});
+
+// ─── Legacy register route (kept for compatibility) ───────────────────────────
+
+app.post("/api/register", async (req, res) => {
+  try {
+    const { canvasUrl, canvasToken, pushSubscription } = req.body;
+
+    if (!canvasUrl || !canvasToken || !pushSubscription) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const normalizedUrl = canvasUrl.replace(/\/$/, "");
+
+    const testRes = await fetch(`${normalizedUrl}/api/v1/users/self`, {
+      headers: { Authorization: `Bearer ${canvasToken}` },
+    });
+
+    if (!testRes.ok) {
+      return res.status(401).json({ error: "Invalid Canvas URL or API token. Please check and try again." });
+    }
+
+    const encryptedToken = encrypt(canvasToken);
+
+    await User.findOneAndUpdate(
+      { "pushSubscription.endpoint": pushSubscription.endpoint },
+      {
+        canvasUrl: normalizedUrl,
+        encryptedToken,
+        pushSubscription,
+        updatedAt: new Date(),
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Register error:", err);
+    res.status(500).json({ error: "Server error", details: String(err) });
+  }
+});
+
+// Fetch assignments from Canvas — uses the logged-in user's credentials
+app.get("/api/assignments", verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user || !user.encryptedToken || !user.canvasUrl) {
+      return res.status(401).json({ error: "User not found or Canvas credentials missing. Please sign in again." });
+    }
+
+    const canvasToken = decrypt(user.encryptedToken);
+    const baseUrl = user.canvasUrl;
+
+    const queryDays = req.query.days ? parseInt(req.query.days, 10) : NaN;
+    const days = Number.isFinite(queryDays) ? queryDays : 31;
+
+    const url = `${baseUrl}/api/v1/users/self/todo?per_page=10000`;
     const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${canvasToken}` },
     });
 
     if (!response.ok) {
       const text = await response.text();
-      return res.status(response.status).json({
-        error: "Canvas API request failed",
-        status: response.status,
-        details: text,
-      });
+      return res.status(response.status).json({ error: "Canvas API request failed", details: text });
     }
 
     const data = await response.json();
@@ -106,10 +265,8 @@ app.get("/api/assignments", async (req, res) => {
     const end = new Date(now);
     end.setDate(end.getDate() + days);
 
-    let filtered = Array.isArray(data)
+    const filtered = Array.isArray(data)
       ? data.filter((item) => { const due = parseDue(item); return due && due >= now && due <= end; })
-      : Array.isArray(data.items)
-      ? data.items.filter((item) => { const due = parseDue(item); return due && due >= now && due <= end; })
       : [];
 
     res.json(filtered);
@@ -120,12 +277,11 @@ app.get("/api/assignments", async (req, res) => {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function getDueSoonAssignments() {
-  const baseUrl = process.env.BASE_URL;
-  const token = process.env.API_TOKEN;
-  const response = await fetch(`${baseUrl}/api/v1/users/self/todo?per_page=100`, {
-    headers: { Authorization: `Bearer ${token}` },
+async function getDueSoonForUser(canvasUrl, canvasToken) {
+  const response = await fetch(`${canvasUrl}/api/v1/users/self/todo?per_page=100`, {
+    headers: { Authorization: `Bearer ${canvasToken}` },
   });
+  if (!response.ok) return [];
   const data = await response.json();
   const now = Date.now();
   const in24h = now + 24 * 60 * 60 * 1000;
@@ -138,62 +294,82 @@ async function getDueSoonAssignments() {
   });
 }
 
-// ─── Cron: every 15 minutes ───────────────────────────────────────────────────
+// ─── Cron helper ─────────────────────────────────────────────────────────────
 
-cron.schedule("*/15 * * * *", async () => {
-  console.log("[cron] Checking for due-soon assignments...");
+async function runCron() {
+  console.log("[cron] Checking due-soon assignments for all users...");
 
-  if (subscriptions.size === 0) {
-    console.log("[cron] No subscribers, skipping.");
-    return;
-  }
-
-  let dueSoon;
+  let users;
   try {
-    dueSoon = await getDueSoonAssignments();
+    users = await User.find({ encryptedToken: { $exists: true }, pushSubscription: { $exists: true } });
   } catch (err) {
-    console.error("[cron] Failed to fetch assignments:", err.message);
+    console.error("[cron] Failed to fetch users from DB:", err.message);
     return;
   }
 
-  if (!dueSoon.length) {
-    console.log("[cron] No assignments due within 24h.");
+  if (!users.length) {
+    console.log("[cron] No users registered yet.");
     return;
   }
 
-  console.log(`[cron] Found ${dueSoon.length} due-soon assignment(s). Notifying ${subscriptions.size} subscriber(s).`);
+  console.log(`[cron] Processing ${users.length} user(s)...`);
 
-  for (const subStr of subscriptions) {
-    const sub = JSON.parse(subStr);
-    for (const item of dueSoon) {
-      const title = item.assignment?.name || "Assignment due soon";
-      const dueAt = new Date(item.assignment?.due_at || item.due_at);
-      const hoursLeft = ((dueAt - Date.now()) / 3600000).toFixed(1);
+  for (const user of users) {
+    try {
+      if (!user.encryptedToken || !user.pushSubscription) continue;
+      const canvasToken = decrypt(user.encryptedToken);
+      const dueSoon = await getDueSoonForUser(user.canvasUrl, canvasToken);
 
-      try {
-        await webpush.sendNotification(
-          sub,
-          JSON.stringify({
-            title: `⏰ Due in ${hoursLeft}h: ${title}`,
-            body: `Course: ${item.context_name || "Unknown"}`,
-            url: item.assignment?.html_url || "/",
-          })
-        );
-      } catch (err) {
-        if (err.statusCode === 410) {
-          console.log("[cron] Removing expired subscription.");
-          subscriptions.delete(subStr);
-        } else {
-          console.error("[cron] Push failed:", err.message);
+      if (!dueSoon.length) continue;
+
+      for (const item of dueSoon) {
+        const title = item.assignment?.name || "Assignment due soon";
+        const dueAt = new Date(item.assignment?.due_at || item.due_at);
+        const hoursLeft = ((dueAt - Date.now()) / 3600000).toFixed(1);
+
+        try {
+          await webpush.sendNotification(
+            user.pushSubscription,
+            JSON.stringify({
+              title: `⏰ Due in ${hoursLeft}h: ${title}`,
+              body: `Course: ${item.context_name || "Unknown"}`,
+              url: item.assignment?.html_url || "/",
+            })
+          );
+          console.log(`[cron] Notified user ${user._id} about: ${title}`);
+        } catch (err) {
+          if (err.statusCode === 410) {
+            console.log("[cron] Subscription expired, clearing push subscription.");
+            await User.findByIdAndUpdate(user._id, { pushSubscription: null });
+          } else {
+            console.error("[cron] Push failed:", err.message);
+          }
         }
       }
+    } catch (err) {
+      console.error(`[cron] Error processing user ${user._id}:`, err.message);
     }
   }
-});
+}
 
-// ─── Start server (ONE listen call) ──────────────────────────────────────────
+// ─── Connect to MongoDB, then start cron + server ────────────────────────────
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`);
-});
+mongoose.connect(process.env.MONGODB_URI, {
+  tls: true,
+  tlsAllowInvalidCertificates: false,
+})
+  .then(() => {
+    console.log("Connected to MongoDB Atlas");
+
+    cron.schedule("*/15 * * * *", runCron);
+    console.log("[cron] Scheduler started (every 15 min)");
+
+    const PORT = process.env.PORT || 3001;
+    app.listen(PORT, () => {
+      console.log(`Backend running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("MongoDB connection error:", err);
+    process.exit(1);
+  });

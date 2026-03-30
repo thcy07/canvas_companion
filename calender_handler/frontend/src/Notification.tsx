@@ -1,0 +1,92 @@
+// frontend/src/NotificationTester.tsx
+// Minimal component — just silently re-subscribes in background if already set up.
+// The full setup flow is handled by Onboarding.tsx.
+
+import { useEffect, useState } from "react";
+declare const __API_URL__: string;
+
+export default function NotificationTester() {
+  const [status, setStatus] = useState<"active" | "inactive">("inactive");
+  const [canvasUrl, setCanvasUrl] = useState(() => localStorage.getItem("canvasUrl") ?? "");
+  const [canvasToken, setCanvasToken] = useState(() => localStorage.getItem("canvasToken") ?? "");
+
+  function urlBase64ToUint8Array(base64String: string) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = atob(base64);
+    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+  }
+
+  useEffect(() => {
+    async function resubscribeIfNeeded() {
+      const setupComplete = localStorage.getItem("setupComplete");
+      if (!setupComplete) return;
+      if (!("serviceWorker" in navigator)) return;
+      if (Notification.permission !== "granted") return;
+
+      try {
+        const registration = await navigator.serviceWorker.register("/sw.js");
+        const apiBase = typeof __API_URL__ !== "undefined" && __API_URL__ ? __API_URL__ : "";
+        const res = await fetch(`${apiBase}/api/vapid-public-key`);
+
+        if (!res.ok) {
+          const text = await res.text();
+          console.error("VAPID fetch failed:", text);
+          throw new Error("Failed to get VAPID key");
+        }
+
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          const text = await res.text();
+          console.error("VAPID fetch returned non-JSON response:", text);
+          throw new Error("VAPID response not JSON");
+        }
+
+        const { publicKey } = await res.json();
+        const pushSubscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+
+        // Re-send subscription to backend (upsert keeps it fresh)
+        const reg = await fetch(`${apiBase}/api/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            canvasUrl,
+            canvasToken,
+            pushSubscription,
+          }),
+        });
+        if (!reg.ok) {
+          const text = await reg.text();
+          console.error("Register failed:", text);
+          throw new Error("Failed to register subscription");
+        }
+
+        const regContent = reg.headers.get("content-type") || "";
+        if (!regContent.includes("application/json")) {
+          // log non-JSON success body for debugging
+          const text = await reg.text();
+          console.warn("Register returned non-JSON response:", text);
+        }
+
+        setStatus("active");
+      } catch {
+        setStatus("inactive");
+      }
+    }
+
+    resubscribeIfNeeded();
+  }, []);
+
+  if (status === "active") {
+    return (
+      <div style={{ fontSize: 13, color: "#000000" }}>
+        🔔 Notifications active
+      </div>
+    );
+  }
+
+  return null;
+}
