@@ -80,6 +80,48 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY
 );
 
+// ─── AI Plan prompt builder ───────────────────────────────────────────────────
+
+function urgencyLabel(dueAt) {
+  if (!dueAt) return "no due date";
+  const h = (Date.parse(dueAt) - Date.now()) / 3600000;
+  if (!Number.isFinite(h)) return "no due date";
+  if (h < 0) return "OVERDUE";
+  if (h <= 24) return "due within 24 hours";
+  if (h <= 72) return "due within 3 days";
+  if (h <= 168) return "due within a week";
+  return `due in ${Math.round(h / 24)} days`;
+}
+
+function buildPlanPrompt(assignments) {
+  const list = assignments
+    .filter(a => a.status !== "done")
+    .map((a, i) => {
+      const urgency = urgencyLabel(a.dueAt);
+      const desc = a.description ? `\n   Description: "${String(a.description).slice(0, 300)}"` : "";
+      return `${i + 1}. "${a.title}" (${a.courseName}) — ${urgency}${desc}`;
+    })
+    .join("\n");
+
+  return `You are a friendly academic planner. A student has these upcoming Canvas assignments:
+
+${list}
+
+Your job: create a focused "Today's Plan" — a short prioritized list of work blocks the student should do TODAY.
+
+Rules:
+- Read any description text carefully — it often says how long the assignment takes or what's involved.
+- Prioritize by urgency (overdue first, then due soon), but factor in estimated effort from descriptions.
+- Suggest 3–5 work blocks. Each block: a task name, estimated minutes, and a 1-sentence reason.
+- Be specific and encouraging. If a description says "10-minute quiz," say 10 minutes.
+- Keep each block concise. Output ONLY valid JSON — no markdown, no explanation.
+
+Format:
+[
+  { "title": "...", "minutes": 30, "reason": "..." }
+]`;
+}
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 app.get("/health", (req, res) => {
@@ -113,7 +155,6 @@ app.post("/api/auth/signup", async (req, res) => {
 
     const normalizedUrl = canvasUrl.replace(/\/$/, "");
 
-    // Verify Canvas token works
     const testRes = await fetch(`${normalizedUrl}/api/v1/users/self`, {
       headers: { Authorization: `Bearer ${canvasToken}` },
     });
@@ -163,19 +204,14 @@ app.post("/api/auth/signin", async (req, res) => {
     const token = signToken(user._id);
     const canvasToken = user.encryptedToken ? decrypt(user.encryptedToken) : null;
 
-    res.json({
-      ok: true,
-      token,
-      canvasUrl: user.canvasUrl,
-      canvasToken,
-    });
+    res.json({ ok: true, token, canvasUrl: user.canvasUrl, canvasToken });
   } catch (err) {
     console.error("Signin error:", err);
     res.status(500).json({ error: "Server error", details: String(err) });
   }
 });
 
-// ─── Auth: Update push subscription (called after sign in on new device) ─────
+// ─── Auth: Update push subscription ──────────────────────────────────────────
 
 app.post("/api/auth/update-push", verifyToken, async (req, res) => {
   try {
@@ -187,7 +223,7 @@ app.post("/api/auth/update-push", verifyToken, async (req, res) => {
   }
 });
 
-// ─── Legacy register route (kept for compatibility) ───────────────────────────
+// ─── Legacy register route ────────────────────────────────────────────────────
 
 app.post("/api/register", async (req, res) => {
   try {
@@ -211,12 +247,7 @@ app.post("/api/register", async (req, res) => {
 
     await User.findOneAndUpdate(
       { "pushSubscription.endpoint": pushSubscription.endpoint },
-      {
-        canvasUrl: normalizedUrl,
-        encryptedToken,
-        pushSubscription,
-        updatedAt: new Date(),
-      },
+      { canvasUrl: normalizedUrl, encryptedToken, pushSubscription, updatedAt: new Date() },
       { upsert: true, new: true }
     );
 
@@ -227,7 +258,8 @@ app.post("/api/register", async (req, res) => {
   }
 });
 
-// Fetch assignments from Canvas — uses the logged-in user's credentials
+// ─── Assignments ──────────────────────────────────────────────────────────────
+
 app.get("/api/assignments", verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
@@ -275,15 +307,23 @@ app.get("/api/assignments", verifyToken, async (req, res) => {
   }
 });
 
-// ─── Auth: AI Plan ────────────────────────────────────────────────────────────
+// ─── AI Plan ─────────────────────────────────────────────────────────────────
 
 app.post("/api/ai-plan", verifyToken, async (req, res) => {
   try {
     const { assignments } = req.body;
 
-    const prompt = buildPlanPrompt(assignments); // move prompt-building here
+    if (!assignments || !Array.isArray(assignments)) {
+      return res.status(400).json({ error: "assignments array required" });
+    }
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured on server" });
+    }
+
+    const prompt = buildPlanPrompt(assignments);
+
+    const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -291,17 +331,33 @@ app.post("/api/ai-plan", verifyToken, async (req, res) => {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 1000,
         messages: [{ role: "user", content: prompt }],
       }),
     });
 
-    const data = await response.json();
+    if (!aiRes.ok) {
+      const text = await aiRes.text();
+      console.error("[ai-plan] Anthropic error:", text);
+      return res.status(502).json({ error: "Anthropic API error", details: text });
+    }
+
+    const data = await aiRes.json();
     const raw = data.content?.find(b => b.type === "text")?.text || "[]";
     const clean = raw.replace(/```json|```/g, "").trim();
-    res.json(JSON.parse(clean));
+
+    let plan;
+    try {
+      plan = JSON.parse(clean);
+    } catch {
+      console.error("[ai-plan] Failed to parse JSON:", clean);
+      return res.status(502).json({ error: "Failed to parse AI response" });
+    }
+
+    res.json(plan);
   } catch (err) {
+    console.error("[ai-plan] Error:", err);
     res.status(500).json({ error: "AI plan failed", details: String(err) });
   }
 });
@@ -325,7 +381,7 @@ async function getDueSoonForUser(canvasUrl, canvasToken) {
   });
 }
 
-// ─── Cron helper ─────────────────────────────────────────────────────────────
+// ─── Cron ─────────────────────────────────────────────────────────────────────
 
 async function runCron() {
   console.log("[cron] Checking due-soon assignments for all users...");
@@ -338,11 +394,7 @@ async function runCron() {
     return;
   }
 
-  if (!users.length) {
-    console.log("[cron] No users registered yet.");
-    return;
-  }
-
+  if (!users.length) { console.log("[cron] No users registered yet."); return; }
   console.log(`[cron] Processing ${users.length} user(s)...`);
 
   for (const user of users) {
@@ -350,7 +402,6 @@ async function runCron() {
       if (!user.encryptedToken || !user.pushSubscription) continue;
       const canvasToken = decrypt(user.encryptedToken);
       const dueSoon = await getDueSoonForUser(user.canvasUrl, canvasToken);
-
       if (!dueSoon.length) continue;
 
       for (const item of dueSoon) {
@@ -391,14 +442,10 @@ mongoose.connect(process.env.MONGODB_URI, {
 })
   .then(() => {
     console.log("Connected to MongoDB Atlas");
-
     cron.schedule("*/15 * * * *", runCron);
     console.log("[cron] Scheduler started (every 15 min)");
-
     const PORT = process.env.PORT || 3001;
-    app.listen(PORT, () => {
-      console.log(`Backend running on http://localhost:${PORT}`);
-    });
+    app.listen(PORT, () => console.log(`Backend running on http://localhost:${PORT}`));
   })
   .catch((err) => {
     console.error("MongoDB connection error:", err);
