@@ -80,7 +80,7 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY
 );
 
-// ─── AI Plan prompt builder ───────────────────────────────────────────────────
+// ─── AI Plan helpers ──────────────────────────────────────────────────────────
 
 function urgencyLabel(dueAt) {
   if (!dueAt) return "no due date";
@@ -133,7 +133,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Serve VAPID public key to frontend
 app.get("/api/vapid-public-key", (req, res) => {
   res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
 });
@@ -307,7 +306,7 @@ app.get("/api/assignments", verifyToken, async (req, res) => {
   }
 });
 
-// ─── AI Plan ─────────────────────────────────────────────────────────────────
+// ─── AI Plan (OpenAI) ─────────────────────────────────────────────────────────
 
 app.post("/api/ai-plan", verifyToken, async (req, res) => {
   try {
@@ -317,21 +316,20 @@ app.post("/api/ai-plan", verifyToken, async (req, res) => {
       return res.status(400).json({ error: "assignments array required" });
     }
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured on server" });
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ error: "OPENAI_API_KEY not configured on server" });
     }
 
     const prompt = buildPlanPrompt(assignments);
 
-    const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: "gpt-4o-mini",
         max_tokens: 1000,
         messages: [{ role: "user", content: prompt }],
       }),
@@ -339,12 +337,12 @@ app.post("/api/ai-plan", verifyToken, async (req, res) => {
 
     if (!aiRes.ok) {
       const text = await aiRes.text();
-      console.error("[ai-plan] Anthropic error:", text);
-      return res.status(502).json({ error: "Anthropic API error", details: text });
+      console.error("[ai-plan] OpenAI error:", text);
+      return res.status(502).json({ error: "OpenAI API error", details: text });
     }
 
     const data = await aiRes.json();
-    const raw = data.content?.find(b => b.type === "text")?.text || "[]";
+    const raw = data.choices?.[0]?.message?.content || "[]";
     const clean = raw.replace(/```json|```/g, "").trim();
 
     let plan;
