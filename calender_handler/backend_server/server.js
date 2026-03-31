@@ -275,6 +275,37 @@ app.get("/api/assignments", verifyToken, async (req, res) => {
   }
 });
 
+// ─── Auth: AI Plan ────────────────────────────────────────────────────────────
+
+app.post("/api/ai-plan", verifyToken, async (req, res) => {
+  try {
+    const { assignments } = req.body;
+
+    const prompt = buildPlanPrompt(assignments); // move prompt-building here
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    const data = await response.json();
+    const raw = data.content?.find(b => b.type === "text")?.text || "[]";
+    const clean = raw.replace(/```json|```/g, "").trim();
+    res.json(JSON.parse(clean));
+  } catch (err) {
+    res.status(500).json({ error: "AI plan failed", details: String(err) });
+  }
+});
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function getDueSoonForUser(canvasUrl, canvasToken) {

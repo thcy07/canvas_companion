@@ -119,6 +119,23 @@ export default function AIPlan({ assignments = [] }) {
       generate();
     }
   }, [cacheKey]);
+    
+    async function fetchAIPlan(assignments) {
+  const apiBase = typeof __API_URL__ !== "undefined" && __API_URL__ ? __API_URL__ : "";
+  const token = localStorage.getItem("authToken");
+
+  const response = await fetch(`${apiBase}/api/ai-plan`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ assignments }),
+  });
+
+  if (!response.ok) throw new Error(`API error ${response.status}`);
+  return await response.json();
+}
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
