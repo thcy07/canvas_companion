@@ -306,7 +306,7 @@ app.get("/api/assignments", verifyToken, async (req, res) => {
   }
 });
 
-// ─── AI Plan (OpenAI) ─────────────────────────────────────────────────────────
+// ─── AI Plan (Gemini) ─────────────────────────────────────────────────────────
 
 app.post("/api/ai-plan", verifyToken, async (req, res) => {
   try {
@@ -316,33 +316,31 @@ app.post("/api/ai-plan", verifyToken, async (req, res) => {
       return res.status(400).json({ error: "assignments array required" });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: "OPENAI_API_KEY not configured on server" });
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: "GEMINI_API_KEY not configured on server" });
     }
 
     const prompt = buildPlanPrompt(assignments);
 
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        max_tokens: 1000,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+    const aiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      }
+    );
 
     if (!aiRes.ok) {
       const text = await aiRes.text();
-      console.error("[ai-plan] OpenAI error:", text);
-      return res.status(502).json({ error: "OpenAI API error", details: text });
+      console.error("[ai-plan] Gemini error:", text);
+      return res.status(502).json({ error: "Gemini API error", details: text });
     }
 
     const data = await aiRes.json();
-    const raw = data.choices?.[0]?.message?.content || "[]";
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
     const clean = raw.replace(/```json|```/g, "").trim();
 
     let plan;
