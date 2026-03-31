@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { applyMeta, buildFlagsMap } from "./AI";
+import { applyMeta, buildFlagsMap, suggestTodayPlan } from "./AI";
 import { Routes, Route, Link, useLocation } from "react-router-dom";
 import APIKeyWalkthroughView from "./Walkthrough";
 import DayView from "./DayView";
 import Footer from "./Footer";
 import Streak from "./Streak";
 import MonthlyView from "./MonthView";
-import AIPlan from "./AIPlan";
 import "./index.css";
 import Onboarding from "./Onboarding";
 
@@ -42,6 +41,17 @@ function formatDue(dueAt) {
 
 function safeText(s, fallback = "") {
   return typeof s === "string" ? s : fallback;
+}
+
+function stressBannerStyle(level) {
+  switch (level) {
+    case "calm":     return { background: "#ddf0e2", border: "1.5px solid #8bbfa0", color: "#1e3a2f" };
+    case "light":    return { background: "#eaf5ee", border: "1.5px solid #b0d4be", color: "#1e3a2f" };
+    case "moderate": return { background: "#fdf5d0", border: "1.5px solid #f0d98c", color: "#5a4000" };
+    case "busy":     return { background: "#fde8e4", border: "1.5px solid #f5b8ae", color: "#6b1e1e" };
+    case "intense":  return { background: "#fde8e4", border: "2px solid #e07070",   color: "#6b0000" };
+    default:         return { background: "#eaf5ee", border: "1.5px solid #b0d4be", color: "#1e3a2f" };
+  }
 }
 
 // ── Navbar ────────────────────────────────────────────────────────────────────
@@ -90,60 +100,6 @@ function Navbar({ showTA, setShowTA }) {
   );
 }
 
-// ── Assignment Card ───────────────────────────────────────────────────────────
-
-function AssignmentCard({ x, flags }) {
-  const status = dueStatus(x.dueAt);
-  const colors = cardStyleFor(status);
-
-  return (
-    <div className="card fade-up" style={{ ...colors, padding: "16px 20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontFamily: "'Playfair Display', Georgia, serif",
-            fontSize: "1rem", fontWeight: 700, color: "#1e3a2f",
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
-            {x.title}
-          </div>
-          <div style={{ fontSize: "0.82rem", color: "#4a6b57", marginTop: 2 }}>
-            {x.courseName}
-          </div>
-          <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 4 }}>
-            📅 {formatDue(x.dueAt)}
-          </div>
-          {flags && flags.length > 0 && (
-            <div style={{ marginTop: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
-              {flags.map((f, i) => (
-                <span key={i} style={{
-                  padding: "1px 8px", borderRadius: 999, fontSize: "0.7rem",
-                  background: "#A9DEF9", color: "#1e3a2f", border: "1px solid #39ABE9",
-                }}>
-                  {f.type.replace(/_/g, " ")}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ textAlign: "right", fontSize: "0.8rem", color: "#4a6b57", flexShrink: 0 }}>
-          {x.points !== null && (
-            <div style={{ fontWeight: 600 }}>{x.points} pts</div>
-          )}
-          {x.url ? (
-            <a className="canvas-link" href={x.url} target="_blank" rel="noreferrer"
-              style={{ display: "inline-block", marginTop: 8 }}>
-              Open ↗
-            </a>
-          ) : (
-            <span style={{ fontSize: "0.75rem", color: "#7a9b84" }}>No link</span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Home View ─────────────────────────────────────────────────────────────────
 
 function HomeView() {
@@ -160,7 +116,7 @@ function HomeView() {
       setError("");
       const apiBase = typeof __API_URL__ !== "undefined" && __API_URL__ ? __API_URL__ : "";
       const token = localStorage.getItem("authToken");
-      const res = await fetch(`${apiBase}/api/assignments?days=31`, {
+      const res = await fetch(`${apiBase}/api/assignments?days=90`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -190,7 +146,6 @@ function HomeView() {
       type: safeText(it.type, "unknown"),
       title: safeText(a.name, "Untitled"),
       dueAt,
-      // Pass description through so AIPlan can use it
       description: safeText(a.description, ""),
       points: typeof a.points_possible === "number" ? a.points_possible : null,
       url: a.html_url || it.html_url || null,
@@ -202,11 +157,15 @@ function HomeView() {
   const assignmentsWithMeta = useMemo(() => applyMeta(normalized, {}), [normalized]);
   const flagsById = useMemo(() => buildFlagsMap(assignmentsWithMeta), [assignmentsWithMeta]);
 
-  // Assignments visible to AIPlan (respects TA toggle)
   const planAssignments = useMemo(() => {
     if (showTA) return assignmentsWithMeta;
     return assignmentsWithMeta.filter(x => !(typeof x.type === "string" && x.type.toLowerCase() === "grading"));
   }, [assignmentsWithMeta, showTA]);
+
+  const { plan, stress } = useMemo(
+    () => suggestTodayPlan(planAssignments, 180),
+    [planAssignments]
+  );
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -233,17 +192,26 @@ function HomeView() {
       <Navbar showTA={showTA} setShowTA={setShowTA} />
 
       <div style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 24px" }}>
-        {/* Page title */}
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontSize: "2rem", margin: 0 }}>Your Assignments 🌸</h1>
           <p style={{ color: "#4a6b57", marginTop: 6, fontStyle: "italic", margin: "6px 0 0" }}>
-            Here's what's coming up this month
+            Here's what's coming up in the next 3 months
           </p>
         </div>
 
-        {/* Main layout: calendar left, sidebar right */}
+        {/* Stress banner */}
+        {stress && (
+          <div style={{
+            ...stressBannerStyle(stress.level),
+            borderRadius: 12, padding: "12px 18px",
+            marginBottom: 24, fontSize: "0.9rem", fontWeight: 500,
+          }}>
+            {stress.message}
+          </div>
+        )}
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 24, marginBottom: 28 }}>
-          {/* Calendar — showTA is now passed down so grading items hide/show */}
+          {/* Calendar */}
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             <div style={{
               padding: "14px 20px",
@@ -257,7 +225,6 @@ function HomeView() {
 
           {/* Sidebar */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {/* Streak */}
             <div className="card" style={{
               background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)",
               textAlign: "center",
@@ -265,12 +232,42 @@ function HomeView() {
               <Streak />
             </div>
 
-            {/* AI-powered plan — passes real assignments with descriptions */}
-            <AIPlan assignments={planAssignments} />
+            {/* Rule-based plan — always works, no API needed */}
+            <div className="card" style={{ background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)" }}>
+              <div className="section-title">✨ Today's Plan</div>
+              {plan.length === 0 ? (
+                <p style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic", margin: 0 }}>
+                  You're all caught up! 🌸
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {plan.map((p, i) => (
+                    <div key={i} style={{
+                      background: "#FFFCF7", borderRadius: 10,
+                      border: "1.5px solid #A9DEF9", padding: "10px 14px",
+                      animation: "fadeUp 0.3s ease forwards",
+                      animationDelay: `${i * 60}ms`, opacity: 0,
+                    }}>
+                      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e3a2f" }}>
+                        {p.title}
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 2 }}>
+                        ⏱ {p.minutes} min
+                        {p.isPartial && p.totalEstimate && (
+                          <span style={{ color: "#7a9b84" }}> (of ~{p.totalEstimate} min total)</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "0.78rem", color: "#7a9b84", marginTop: 3, fontStyle: "italic" }}>
+                        {p.reason}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Error */}
         {error && (
           <div style={{
             padding: 14, borderRadius: 12, background: "#fde8e4",
