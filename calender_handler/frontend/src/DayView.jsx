@@ -47,6 +47,10 @@ function stressBannerStyle(level) {
   }
 }
 
+function isGrading(x) {
+  return typeof x.type === "string" && x.type.toLowerCase() === "grading";
+}
+
 function sortPlan(plan, mode) {
   const copy = [...plan];
   switch (mode) {
@@ -63,7 +67,62 @@ function sortPlan(plan, mode) {
   }
 }
 
-// ── Detailed Plan Card (for DayView) ─────────────────────────────────────────
+// ── Detailed Plan Card ────────────────────────────────────────────────────────
+
+function buildWorkSteps(p) {
+  const title = (p.title || "").toLowerCase();
+  const mins = p.minutes || 30;
+
+  if (/exam|midterm|final/.test(title)) return [
+    `Review your notes and any study guides (${Math.round(mins * 0.4)} min)`,
+    `Work through practice problems or past exams (${Math.round(mins * 0.4)} min)`,
+    `Note any weak areas to revisit (${Math.round(mins * 0.2)} min)`,
+  ];
+  if (/quiz/.test(title)) return [
+    `Quickly review the relevant material (${Math.round(mins * 0.5)} min)`,
+    `Complete the quiz — read each question carefully (${Math.round(mins * 0.5)} min)`,
+  ];
+  if (/lab report|writeup|write.?up/.test(title)) return [
+    `Review your lab data and notes (${Math.round(mins * 0.2)} min)`,
+    `Draft key sections: intro, methods, results (${Math.round(mins * 0.5)} min)`,
+    `Write discussion and conclusion (${Math.round(mins * 0.2)} min)`,
+    `Proofread and format references (${Math.round(mins * 0.1)} min)`,
+  ];
+  if (/essay|paper|report/.test(title)) return [
+    `Outline your main argument and structure (${Math.round(mins * 0.2)} min)`,
+    `Write a rough draft of the body (${Math.round(mins * 0.5)} min)`,
+    `Write intro and conclusion (${Math.round(mins * 0.2)} min)`,
+    `Proofread (${Math.round(mins * 0.1)} min)`,
+  ];
+  if (/homework|hw\b|problem.?set|worksheet|calculation/.test(title)) return [
+    `Read through all problems first (5 min)`,
+    `Work through problems in order, show your work (${Math.round(mins * 0.7)} min)`,
+    `Review answers and check for errors (${Math.round(mins * 0.2)} min)`,
+  ];
+  if (/discussion|post|response/.test(title)) return [
+    `Read the prompt carefully (5 min)`,
+    `Draft your response with a clear main point (${Math.round(mins * 0.6)} min)`,
+    `Review and post (${Math.round(mins * 0.2)} min)`,
+  ];
+  if (/project|proposal/.test(title)) return [
+    `Review requirements and rubric (10 min)`,
+    `Work on the most critical section first (${Math.round(mins * 0.6)} min)`,
+    `Note next steps for your next work session (5 min)`,
+  ];
+  if (/reading|read\b/.test(title)) return [
+    `Skim headings and summaries first (5 min)`,
+    `Read actively, taking brief notes (${Math.round(mins * 0.8)} min)`,
+    `Summarize key takeaways (${Math.round(mins * 0.2)} min)`,
+  ];
+  if (/signup|sign.?up|select|survey|feedback|form/.test(title)) return [
+    `Open Canvas and complete the form/signup (${mins} min)`,
+  ];
+  return [
+    `Review the assignment requirements (5 min)`,
+    `Work on the main deliverable (${Math.max(mins - 10, 10)} min)`,
+    `Review your work before submitting (5 min)`,
+  ];
+}
 
 function DetailedPlanCard({ p, index }) {
   const h = hoursUntilDue(p.dueAt);
@@ -82,7 +141,6 @@ function DetailedPlanCard({ p, index }) {
       animation: "fadeUp 0.35s ease forwards",
       animationDelay: `${index * 80}ms`, opacity: 0,
     }}>
-      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#1e3a2f" }}>
@@ -97,11 +155,10 @@ function DetailedPlanCard({ p, index }) {
           background: urgencyColor + "18", borderRadius: 999,
           padding: "2px 10px", whiteSpace: "nowrap", flexShrink: 0,
         }}>
-          {h === null ? "No date" : h < 0 ? "OVERDUE" : h <= 24 ? `${Math.ceil(h)}h left` : h <= 72 ? `${Math.round(h)}h` : formatDue(p.dueAt)}
+          {h === null ? "No date" : h < 0 ? "OVERDUE" : h <= 24 ? `${Math.ceil(h)}h left` : formatDue(p.dueAt)}
         </div>
       </div>
 
-      {/* Time + reason */}
       <div style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap" }}>
         <span style={{ fontSize: "0.8rem", color: "#4a6b57" }}>
           ⏱ <b>{p.minutes} min</b>
@@ -118,7 +175,6 @@ function DetailedPlanCard({ p, index }) {
         {p.reason}
       </div>
 
-      {/* Detailed work steps */}
       {steps.length > 0 && (
         <div style={{ marginTop: 10, borderTop: "1px solid #e0f0ff", paddingTop: 10 }}>
           <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#4a6b57", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
@@ -126,15 +182,12 @@ function DetailedPlanCard({ p, index }) {
           </div>
           <ol style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
             {steps.map((step, i) => (
-              <li key={i} style={{ fontSize: "0.78rem", color: "#1e3a2f", lineHeight: 1.5 }}>
-                {step}
-              </li>
+              <li key={i} style={{ fontSize: "0.78rem", color: "#1e3a2f", lineHeight: 1.5 }}>{step}</li>
             ))}
           </ol>
         </div>
       )}
 
-      {/* Link */}
       {p.url && (
         <div style={{ marginTop: 10 }}>
           <a href={p.url} target="_blank" rel="noreferrer" className="canvas-link">
@@ -146,83 +199,13 @@ function DetailedPlanCard({ p, index }) {
   );
 }
 
-// Generate specific work steps based on assignment type
-function buildWorkSteps(p) {
-  const title = (p.title || "").toLowerCase();
-  const mins = p.minutes || 30;
-
-  if (/exam|midterm|final/.test(title)) {
-    return [
-      `Review your notes and any study guides (${Math.round(mins * 0.4)} min)`,
-      `Work through practice problems or past exams (${Math.round(mins * 0.4)} min)`,
-      `Note any weak areas to revisit (${Math.round(mins * 0.2)} min)`,
-    ];
-  }
-  if (/quiz/.test(title)) {
-    return [
-      `Quickly review the relevant material (${Math.round(mins * 0.5)} min)`,
-      `Complete the quiz — read each question carefully (${Math.round(mins * 0.5)} min)`,
-    ];
-  }
-  if (/lab report|writeup|write.?up/.test(title)) {
-    return [
-      `Review your lab data and notes (${Math.round(mins * 0.2)} min)`,
-      `Draft the key sections: intro, methods, results (${Math.round(mins * 0.5)} min)`,
-      `Write discussion and conclusion (${Math.round(mins * 0.2)} min)`,
-      `Proofread and format references (${Math.round(mins * 0.1)} min)`,
-    ];
-  }
-  if (/essay|paper|report/.test(title)) {
-    return [
-      `Outline your main argument and structure (${Math.round(mins * 0.2)} min)`,
-      `Write a rough draft of the body (${Math.round(mins * 0.5)} min)`,
-      `Write intro and conclusion (${Math.round(mins * 0.2)} min)`,
-      `Proofread (${Math.round(mins * 0.1)} min)`,
-    ];
-  }
-  if (/homework|hw\b|problem.?set|worksheet|calculation/.test(title)) {
-    return [
-      `Read through all problems first (5 min)`,
-      `Work through problems in order, show your work (${Math.round(mins * 0.7)} min)`,
-      `Review answers and check for errors (${Math.round(mins * 0.2)} min)`,
-    ];
-  }
-  if (/discussion|post|response/.test(title)) {
-    return [
-      `Read the prompt carefully (5 min)`,
-      `Draft your response with a clear main point (${Math.round(mins * 0.6)} min)`,
-      `Review and post (${Math.round(mins * 0.2)} min)`,
-    ];
-  }
-  if (/project|proposal/.test(title)) {
-    return [
-      `Review requirements and rubric (10 min)`,
-      `Work on the most critical section first (${Math.round(mins * 0.6)} min)`,
-      `Note next steps for your next work session (5 min)`,
-    ];
-  }
-  if (/reading|read\b/.test(title)) {
-    return [
-      `Skim headings and summaries first (5 min)`,
-      `Read actively, taking brief notes (${Math.round(mins * 0.8)} min)`,
-      `Summarize key takeaways (${Math.round(mins * 0.2)} min)`,
-    ];
-  }
-  if (/signup|sign.?up|select|survey|feedback|form/.test(title)) {
-    return [
-      `Open Canvas and complete the form/signup (${mins} min)`,
-    ];
-  }
-
-  // Generic fallback
-  return [
-    `Review the assignment requirements (5 min)`,
-    `Work on the main deliverable (${Math.max(mins - 10, 10)} min)`,
-    `Review your work before submitting (5 min)`,
-  ];
-}
-
 // ── DayView ───────────────────────────────────────────────────────────────────
+
+const WINDOW_OPTIONS = [
+  { days: 7,  label: "7 days" },
+  { days: 14, label: "14 days" },
+  { days: 30, label: "30 days" },
+];
 
 export default function DayView() {
   const { date } = useParams();
@@ -233,6 +216,7 @@ export default function DayView() {
   const [showTA, setShowTA] = useState(false);
   const [sortMode, setSortMode] = useState("due");
   const [planSort, setPlanSort] = useState("urgency");
+  const [windowDays, setWindowDays] = useState(7);
 
   const targetDate = useMemo(() => {
     if (date) {
@@ -288,25 +272,27 @@ export default function DayView() {
     };
   }), [items]);
 
-  const weekStart = useMemo(() => {
+  // Window start/end based on selected windowDays
+  const windowStart = useMemo(() => {
     const d = new Date(targetDate);
     d.setHours(0, 0, 0, 0);
     return d;
   }, [targetDate]);
 
-  const weekEnd = useMemo(() => {
-    const d = new Date(weekStart);
-    d.setDate(d.getDate() + 14); // 2 weeks instead of 7 days
+  const windowEnd = useMemo(() => {
+    const d = new Date(windowStart);
+    d.setDate(d.getDate() + windowDays);
     return d;
-  }, [weekStart]);
+  }, [windowStart, windowDays]);
 
+  // Assignments visible in the current window, with TA filter
   const filtered = useMemo(() => {
     let result = normalized.filter(x => {
       if (!x.dueAt) return false;
       const due = new Date(x.dueAt);
-      return due >= weekStart && due < weekEnd;
+      return due >= windowStart && due < windowEnd;
     });
-    if (!showTA) result = result.filter(x => x.type?.toLowerCase() !== "grading");
+    if (!showTA) result = result.filter(x => !isGrading(x));
     const q = query.trim().toLowerCase();
     if (q) result = result.filter(x =>
       x.title.toLowerCase().includes(q) ||
@@ -321,27 +307,36 @@ export default function DayView() {
       const bd = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
       return ad - bd;
     });
-  }, [normalized, weekStart, weekEnd, showTA, query, sortMode]);
+  }, [normalized, windowStart, windowEnd, showTA, query, sortMode]);
 
-  const assignmentsWithMeta = useMemo(() => applyMeta(filtered, {}), [filtered]);
-  const flagsById = useMemo(() => buildFlagsMap(assignmentsWithMeta), [assignmentsWithMeta]);
+  // Plan is built ONLY from assignments in the current window
+  const windowAssignmentsWithMeta = useMemo(() => {
+    const windowItems = normalized.filter(x => {
+      if (!x.dueAt) return false;
+      const due = new Date(x.dueAt);
+      return due >= windowStart && due < windowEnd;
+    });
+    const taFiltered = showTA ? windowItems : windowItems.filter(x => !isGrading(x));
+    return applyMeta(taFiltered, {});
+  }, [normalized, windowStart, windowEnd, showTA]);
 
-  const planAssignments = useMemo(() => {
-    if (showTA) return assignmentsWithMeta;
-    return assignmentsWithMeta.filter(x => x.type?.toLowerCase() !== "grading");
-  }, [assignmentsWithMeta, showTA]);
+  const flagsById = useMemo(() => buildFlagsMap(applyMeta(filtered, {})), [filtered]);
 
-  // Use all normalized (not just filtered week) for stress analysis
-  const allWithMeta = useMemo(() => applyMeta(normalized, {}), [normalized]);
-  const stress = useMemo(() => analyzeWeekStress(allWithMeta), [allWithMeta]);
+  // Stress analysis based on window assignments
+  const stress = useMemo(() => analyzeWeekStress(windowAssignmentsWithMeta), [windowAssignmentsWithMeta]);
 
-  const { plan: rawPlan } = useMemo(() => suggestTodayPlan(planAssignments, 180), [planAssignments]);
+  // Plan based only on window assignments
+  const minutesAvailable = windowDays === 7 ? 180 : windowDays === 14 ? 360 : 600;
+  const { plan: rawPlan } = useMemo(
+    () => suggestTodayPlan(windowAssignmentsWithMeta, minutesAvailable),
+    [windowAssignmentsWithMeta, minutesAvailable]
+  );
 
-  // Enrich plan items with extra fields for detailed cards
+  // Enrich plan with display fields
   const enrichedPlan = useMemo(() => rawPlan.map(p => {
-    const match = assignmentsWithMeta.find(a => a.assignmentId === p.assignmentId);
+    const match = windowAssignmentsWithMeta.find(a => a.assignmentId === p.assignmentId);
     return { ...p, courseName: match?.courseName, url: match?.url, points: match?.points, dueAt: match?.dueAt };
-  }), [rawPlan, assignmentsWithMeta]);
+  }), [rawPlan, windowAssignmentsWithMeta]);
 
   const plan = useMemo(() => sortPlan(enrichedPlan, planSort), [enrichedPlan, planSort]);
 
@@ -364,6 +359,10 @@ export default function DayView() {
     d.setDate(d.getDate() + days);
     return d.toISOString().slice(0, 10);
   }
+
+  const planLabel = windowDays === 7 ? "This Week's Plan"
+    : windowDays === 14 ? "2-Week Plan"
+    : "30-Day Plan";
 
   function handleSignOut() {
     localStorage.clear();
@@ -393,19 +392,39 @@ export default function DayView() {
       </nav>
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 24px" }}>
-        {/* Date nav */}
+
+        {/* Header row: prev/next + title + window toggle */}
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
-          <Link to={`/day/${offsetDate(-14)}`}>
-            <button style={{ padding: "8px 18px" }}>← Prev 2 weeks</button>
+          <Link to={`/day/${offsetDate(-windowDays)}`}>
+            <button style={{ padding: "8px 18px" }}>← Prev</button>
           </Link>
+
           <div style={{ flex: 1 }}>
-            <h1 style={{ margin: 0, fontSize: "1.8rem" }}>📖 2-Week View</h1>
+            <h1 style={{ margin: 0, fontSize: "1.8rem" }}>📖 {planLabel}</h1>
             <p style={{ margin: "4px 0 0", color: "#4a6b57", fontStyle: "italic", fontSize: "0.9rem" }}>
-              {dateLabel} — {new Date(weekEnd.getTime() - 1).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              {dateLabel} — {new Date(windowEnd.getTime() - 1).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </p>
           </div>
-          <Link to={`/day/${offsetDate(14)}`}>
-            <button style={{ padding: "8px 18px" }}>Next 2 weeks →</button>
+
+          {/* Window toggle */}
+          <div style={{ display: "flex", gap: 6 }}>
+            {WINDOW_OPTIONS.map(({ days, label }) => (
+              <button
+                key={days}
+                onClick={() => setWindowDays(days)}
+                style={{
+                  fontSize: "0.8rem", padding: "6px 14px", borderRadius: 999,
+                  background: windowDays === days ? "#2d6a4f" : "#eaf5ee",
+                  borderColor: windowDays === days ? "#2d6a4f" : "#b0d4be",
+                  color: windowDays === days ? "white" : "#4a6b57",
+                  fontWeight: windowDays === days ? 700 : 400,
+                }}
+              >{label}</button>
+            ))}
+          </div>
+
+          <Link to={`/day/${offsetDate(windowDays)}`}>
+            <button style={{ padding: "8px 18px" }}>Next →</button>
           </Link>
         </div>
 
@@ -420,7 +439,7 @@ export default function DayView() {
           </div>
         )}
 
-        {/* Search bar */}
+        {/* Search/filter bar */}
         <div className="filter-bar">
           <button onClick={load} disabled={loading} style={{
             background: loading ? "#b0d4be" : "#bde0fe",
@@ -446,7 +465,7 @@ export default function DayView() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24 }}>
-          {/* Main: assignment list */}
+          {/* Main: assignment list grouped by day */}
           <div>
             {error && (
               <div style={{ padding: 14, borderRadius: 12, background: "#fde8e4", border: "1.5px solid #f5b8ae", color: "#6b1e1e", marginBottom: 20 }}>
@@ -462,7 +481,7 @@ export default function DayView() {
               <div className="card" style={{ textAlign: "center", padding: "60px 20px" }}>
                 <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🌸</div>
                 <p style={{ color: "#4a6b57", fontStyle: "italic", margin: 0 }}>
-                  No assignments due in the next 2 weeks. Enjoy the quiet!
+                  No assignments due in this window. Enjoy the quiet!
                 </p>
               </div>
             )}
@@ -531,38 +550,36 @@ export default function DayView() {
             ))}
           </div>
 
-          {/* Sidebar */}
+          {/* Sidebar: detailed plan for the current window */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div className="card" style={{ background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)", textAlign: "center" }}>
               <Streak />
             </div>
 
-            {/* Detailed plan */}
             <div className="card" style={{ background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <div className="section-title" style={{ margin: 0 }}>📋 2-Week Plan</div>
+              <div style={{ marginBottom: 10 }}>
+                <div className="section-title" style={{ margin: "0 0 4px" }}>📋 {planLabel}</div>
+                <div style={{ fontSize: "0.75rem", color: "#7a9b84", fontStyle: "italic" }}>
+                  Based on {windowDays === 7 ? "this week's" : windowDays === 14 ? "the next 14 days'" : "the next 30 days'"} assignments
+                </div>
               </div>
 
               {/* Sort controls */}
               <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
                 {[["urgency", "🔥 Urgency"], ["due", "📅 Due"], ["time", "⏱ Time"]].map(([val, label]) => (
-                  <button
-                    key={val}
-                    onClick={() => setPlanSort(val)}
-                    style={{
-                      fontSize: "0.7rem", padding: "3px 8px", borderRadius: 999,
-                      background: planSort === val ? "#39ABE9" : "#eaf5ee",
-                      borderColor: planSort === val ? "#39ABE9" : "#b0d4be",
-                      color: planSort === val ? "white" : "#4a6b57",
-                      fontWeight: planSort === val ? 700 : 400,
-                    }}
-                  >{label}</button>
+                  <button key={val} onClick={() => setPlanSort(val)} style={{
+                    fontSize: "0.7rem", padding: "3px 8px", borderRadius: 999,
+                    background: planSort === val ? "#39ABE9" : "#eaf5ee",
+                    borderColor: planSort === val ? "#39ABE9" : "#b0d4be",
+                    color: planSort === val ? "white" : "#4a6b57",
+                    fontWeight: planSort === val ? 700 : 400,
+                  }}>{label}</button>
                 ))}
               </div>
 
               {plan.length === 0 ? (
                 <p style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic" }}>
-                  Nothing urgent this period 🌿
+                  Nothing due in this window 🌿
                 </p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

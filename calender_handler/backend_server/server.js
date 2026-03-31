@@ -82,7 +82,6 @@ webpush.setVapidDetails(
 
 // ─── Canvas fetch helpers ─────────────────────────────────────────────────────
 
-// Fetch all pages from a Canvas paginated endpoint
 async function fetchAllPages(url, canvasToken) {
   const results = [];
   let nextUrl = url;
@@ -96,7 +95,6 @@ async function fetchAllPages(url, canvasToken) {
     const data = await res.json();
     if (Array.isArray(data)) results.push(...data);
 
-    // Parse Link header for next page
     const link = res.headers.get("link") || "";
     const match = link.match(/<([^>]+)>;\s*rel="next"/);
     nextUrl = match ? match[1] : null;
@@ -105,29 +103,35 @@ async function fetchAllPages(url, canvasToken) {
   return results;
 }
 
-// Fetch assignments from all active courses — much broader than /todo
+// Detect if a course enrollment makes this user a TA/teacher (not a student)
+function isTACourse(course) {
+  if (!course.enrollments) return false;
+  return course.enrollments.some(e =>
+    ["ta", "teacher", "designer"].includes((e.type || "").toLowerCase())
+  );
+}
+
 async function fetchAssignmentsFromCourses(baseUrl, canvasToken, days) {
   const now = new Date();
   const end = new Date(now);
   end.setDate(end.getDate() + days);
 
-  // Get active courses
+  // Get active courses with enrollment info
   const courses = await fetchAllPages(
-    `${baseUrl}/api/v1/courses?enrollment_state=active&per_page=100`,
+    `${baseUrl}/api/v1/courses?enrollment_state=active&include[]=enrollments&per_page=100`,
     canvasToken
   );
 
   if (!courses.length) return [];
 
-  // Fetch assignments from each course in parallel
   const assignmentArrays = await Promise.all(
     courses.map(async (course) => {
+      const isTA = isTACourse(course);
       try {
         const assignments = await fetchAllPages(
           `${baseUrl}/api/v1/courses/${course.id}/assignments?per_page=100&order_by=due_at&bucket=future`,
           canvasToken
         );
-        // Normalize to a shape similar to the old /todo format
         return assignments
           .filter(a => {
             if (!a.due_at) return false;
@@ -135,7 +139,8 @@ async function fetchAssignmentsFromCourses(baseUrl, canvasToken, days) {
             return due >= now && due <= end;
           })
           .map(a => ({
-            type: "submitting",
+            // Mark as "grading" if user is a TA/teacher in this course
+            type: isTA ? "grading" : "submitting",
             course_id: course.id,
             context_name: course.name || course.course_code || "Unknown course",
             assignment: {
@@ -167,7 +172,6 @@ async function fetchAssignmentsFromCourses(baseUrl, canvasToken, days) {
     }
   }
 
-  // Sort by due date
   all.sort((a, b) => {
     const da = new Date(a.assignment?.due_at || 0).getTime();
     const db = new Date(b.assignment?.due_at || 0).getTime();
@@ -294,7 +298,7 @@ app.post("/api/register", async (req, res) => {
     });
 
     if (!testRes.ok) {
-      return res.status(401).json({ error: "Invalid Canvas URL or API token. Please check and try again." });
+      return res.status(401).json({ error: "Invalid Canvas URL or API token." });
     }
 
     const encryptedToken = encrypt(canvasToken);
@@ -312,7 +316,7 @@ app.post("/api/register", async (req, res) => {
   }
 });
 
-// ─── Assignments — now fetches from all courses, not just /todo ───────────────
+// ─── Assignments ──────────────────────────────────────────────────────────────
 
 app.get("/api/assignments", verifyToken, async (req, res) => {
   try {
@@ -335,18 +339,15 @@ app.get("/api/assignments", verifyToken, async (req, res) => {
   }
 });
 
-// ─── Cron helpers ─────────────────────────────────────────────────────────────
+// ─── Cron ─────────────────────────────────────────────────────────────────────
 
 async function getDueSoonForUser(canvasUrl, canvasToken) {
   try {
-    const assignments = await fetchAssignmentsFromCourses(canvasUrl, canvasToken, 1);
-    return assignments;
+    return await fetchAssignmentsFromCourses(canvasUrl, canvasToken, 1);
   } catch {
     return [];
   }
 }
-
-// ─── Cron ─────────────────────────────────────────────────────────────────────
 
 async function runCron() {
   console.log("[cron] Checking due-soon assignments for all users...");
@@ -367,9 +368,11 @@ async function runCron() {
       if (!user.encryptedToken || !user.pushSubscription) continue;
       const canvasToken = decrypt(user.encryptedToken);
       const dueSoon = await getDueSoonForUser(user.canvasUrl, canvasToken);
-      if (!dueSoon.length) continue;
+      // Only notify for student assignments, not TA grading tasks
+      const studentOnly = dueSoon.filter(i => i.type !== "grading");
+      if (!studentOnly.length) continue;
 
-      for (const item of dueSoon) {
+      for (const item of studentOnly) {
         const title = item.assignment?.name || "Assignment due soon";
         const dueAt = new Date(item.assignment?.due_at || item.due_at);
         const hoursLeft = ((dueAt - Date.now()) / 3600000).toFixed(1);
@@ -399,7 +402,7 @@ async function runCron() {
   }
 }
 
-// ─── Connect to MongoDB, then start ──────────────────────────────────────────
+// ─── Connect to MongoDB ───────────────────────────────────────────────────────
 
 mongoose.connect(process.env.MONGODB_URI, {
   tls: true,
