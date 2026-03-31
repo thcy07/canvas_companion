@@ -32,6 +32,22 @@ function cardStyleFor(status) {
   }
 }
 
+function badgeStyleFor(status) {
+  switch (status) {
+    case "red":    return { background: "#f5b8ae", color: "#7a1e1e", border: "1px solid #e8907f" };
+    case "yellow": return { background: "#f0d98c", color: "#6b4a00", border: "1px solid #d4b830" };
+    case "green":  return { background: "#8bbfa0", color: "#1e3a2f", border: "1px solid #5a9e78" };
+    default:       return { background: "#b0d4be", color: "#1e3a2f", border: "1px solid #8bbfa0" };
+  }
+}
+
+function formatDue(dueAt) {
+  if (!dueAt) return "No due date";
+  const d = new Date(dueAt);
+  if (Number.isNaN(d.getTime())) return "Invalid date";
+  return d.toLocaleString();
+}
+
 function safeText(s, fallback = "") {
   return typeof s === "string" ? s : fallback;
 }
@@ -47,14 +63,10 @@ function stressBannerStyle(level) {
   }
 }
 
-// ── Plan sort ─────────────────────────────────────────────────────────────────
-
 function sortPlan(plan, mode) {
   const copy = [...plan];
   switch (mode) {
-    case "urgency":
-      // Already sorted by urgency from suggestTodayPlan — keep as-is
-      return copy;
+    case "urgency": return copy;
     case "due":
       return copy.sort((a, b) => {
         const ah = hoursUntilDue(a.dueAt) ?? Infinity;
@@ -63,12 +75,9 @@ function sortPlan(plan, mode) {
       });
     case "time":
       return copy.sort((a, b) => (a.minutes ?? 0) - (b.minutes ?? 0));
-    default:
-      return copy;
+    default: return copy;
   }
 }
-
-// ── Plan card ─────────────────────────────────────────────────────────────────
 
 function PlanCard({ p }) {
   return (
@@ -211,7 +220,6 @@ function HomeView() {
           </p>
         </div>
 
-        {/* Stress banner */}
         {stress && (
           <div style={{
             ...stressBannerStyle(stress.level),
@@ -223,7 +231,6 @@ function HomeView() {
         )}
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 24, marginBottom: 28 }}>
-          {/* Calendar */}
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             <div style={{
               padding: "14px 20px", borderBottom: "1.5px solid #b0d4be",
@@ -234,19 +241,16 @@ function HomeView() {
             <MonthlyView showTA={showTA} />
           </div>
 
-          {/* Sidebar */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div className="card" style={{ background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)", textAlign: "center" }}>
               <Streak />
             </div>
 
-            {/* Today's Plan */}
             <div className="card" style={{ background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                 <div className="section-title" style={{ margin: 0 }}>✨ Today's Plan</div>
               </div>
 
-              {/* Sort controls */}
               <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
                 {[["urgency", "🔥 Urgency"], ["due", "📅 Due date"], ["time", "⏱ Time"]].map(([val, label]) => (
                   <button

@@ -25,6 +25,16 @@ function cardStyleFor(status) {
   }
 }
 
+// Badge + Open button colors matched to card status
+function badgeStyleFor(status) {
+  switch (status) {
+    case "red":    return { background: "#f5b8ae", color: "#7a1e1e", border: "1px solid #e8907f" };
+    case "yellow": return { background: "#f0d98c", color: "#6b4a00", border: "1px solid #d4b830" };
+    case "green":  return { background: "#8bbfa0", color: "#1e3a2f", border: "1px solid #5a9e78" };
+    default:       return { background: "#b0d4be", color: "#1e3a2f", border: "1px solid #8bbfa0" };
+  }
+}
+
 function formatDue(dueAt) {
   if (!dueAt) return "No due date";
   const d = new Date(dueAt);
@@ -272,7 +282,6 @@ export default function DayView() {
     };
   }), [items]);
 
-  // Window start/end based on selected windowDays
   const windowStart = useMemo(() => {
     const d = new Date(targetDate);
     d.setHours(0, 0, 0, 0);
@@ -285,7 +294,6 @@ export default function DayView() {
     return d;
   }, [windowStart, windowDays]);
 
-  // Assignments visible in the current window, with TA filter
   const filtered = useMemo(() => {
     let result = normalized.filter(x => {
       if (!x.dueAt) return false;
@@ -309,7 +317,6 @@ export default function DayView() {
     });
   }, [normalized, windowStart, windowEnd, showTA, query, sortMode]);
 
-  // Plan is built ONLY from assignments in the current window
   const windowAssignmentsWithMeta = useMemo(() => {
     const windowItems = normalized.filter(x => {
       if (!x.dueAt) return false;
@@ -321,18 +328,14 @@ export default function DayView() {
   }, [normalized, windowStart, windowEnd, showTA]);
 
   const flagsById = useMemo(() => buildFlagsMap(applyMeta(filtered, {})), [filtered]);
-
-  // Stress analysis based on window assignments
   const stress = useMemo(() => analyzeWeekStress(windowAssignmentsWithMeta), [windowAssignmentsWithMeta]);
 
-  // Plan based only on window assignments
   const minutesAvailable = windowDays === 7 ? 180 : windowDays === 14 ? 360 : 600;
   const { plan: rawPlan } = useMemo(
     () => suggestTodayPlan(windowAssignmentsWithMeta, minutesAvailable),
     [windowAssignmentsWithMeta, minutesAvailable]
   );
 
-  // Enrich plan with display fields
   const enrichedPlan = useMemo(() => rawPlan.map(p => {
     const match = windowAssignmentsWithMeta.find(a => a.assignmentId === p.assignmentId);
     return { ...p, courseName: match?.courseName, url: match?.url, points: match?.points, dueAt: match?.dueAt };
@@ -393,7 +396,6 @@ export default function DayView() {
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 24px" }}>
 
-        {/* Header row: prev/next + title + window toggle */}
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
           <Link to={`/day/${offsetDate(-windowDays)}`}>
             <button style={{ padding: "8px 18px" }}>← Prev</button>
@@ -406,7 +408,6 @@ export default function DayView() {
             </p>
           </div>
 
-          {/* Window toggle */}
           <div style={{ display: "flex", gap: 6 }}>
             {WINDOW_OPTIONS.map(({ days, label }) => (
               <button
@@ -428,7 +429,6 @@ export default function DayView() {
           </Link>
         </div>
 
-        {/* Stress banner */}
         {stress && (
           <div style={{
             ...stressBannerStyle(stress.level),
@@ -439,7 +439,6 @@ export default function DayView() {
           </div>
         )}
 
-        {/* Search/filter bar */}
         <div className="filter-bar">
           <button onClick={load} disabled={loading} style={{
             background: loading ? "#b0d4be" : "#bde0fe",
@@ -465,7 +464,6 @@ export default function DayView() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24 }}>
-          {/* Main: assignment list grouped by day */}
           <div>
             {error && (
               <div style={{ padding: 14, borderRadius: 12, background: "#fde8e4", border: "1.5px solid #f5b8ae", color: "#6b1e1e", marginBottom: 20 }}>
@@ -507,6 +505,7 @@ export default function DayView() {
                   {grouped[dayKey].map(x => {
                     const status = dueStatus(x.dueAt);
                     const colors = cardStyleFor(status);
+                    const badge = badgeStyleFor(status);
                     const flags = flagsById[x.assignmentId] || [];
                     return (
                       <div key={x.key} className="card fade-up" style={{ ...colors, padding: "14px 18px" }}>
@@ -521,8 +520,8 @@ export default function DayView() {
                               <div style={{ marginTop: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
                                 {flags.map((f, i) => (
                                   <span key={i} style={{
-                                    padding: "1px 8px", borderRadius: 999, fontSize: "0.7rem",
-                                    background: "#A9DEF9", color: "#1e3a2f", border: "1px solid #bde0fe",
+                                    padding: "2px 10px", borderRadius: 999, fontSize: "0.7rem",
+                                    ...badge,
                                   }}>
                                     {f.type.replace(/_/g, " ")}
                                   </span>
@@ -535,8 +534,15 @@ export default function DayView() {
                               <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#4a6b57" }}>{x.points} pts</div>
                             )}
                             {x.url ? (
-                              <a className="canvas-link" href={x.url} target="_blank" rel="noreferrer"
-                                style={{ display: "inline-block", marginTop: 8 }}>Open ↗</a>
+                              <a href={x.url} target="_blank" rel="noreferrer"
+                                style={{
+                                  display: "inline-block", marginTop: 8,
+                                  fontSize: "0.8rem", padding: "4px 14px",
+                                  borderRadius: 999, textDecoration: "none",
+                                  ...badge,
+                                }}>
+                                Open ↗
+                              </a>
                             ) : (
                               <span style={{ fontSize: "0.75rem", color: "#7a9b84" }}>No link</span>
                             )}
@@ -550,7 +556,6 @@ export default function DayView() {
             ))}
           </div>
 
-          {/* Sidebar: detailed plan for the current window */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div className="card" style={{ background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)", textAlign: "center" }}>
               <Streak />
@@ -564,7 +569,6 @@ export default function DayView() {
                 </div>
               </div>
 
-              {/* Sort controls */}
               <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
                 {[["urgency", "🔥 Urgency"], ["due", "📅 Due"], ["time", "⏱ Time"]].map(([val, label]) => (
                   <button key={val} onClick={() => setPlanSort(val)} style={{
