@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 
 function dueStatus(dueAt) {
   if (!dueAt) return "nodate";
@@ -23,18 +22,12 @@ function cardStyleFor(status) {
   }
 }
 
-function formatDue(dueAt) {
-  if (!dueAt) return "No due date";
-  const d = new Date(dueAt);
-  if (Number.isNaN(d.getTime())) return "Invalid date";
-  return d.toLocaleString();
-}
-
 function safeText(s, fallback = "") {
   return typeof s === "string" ? s : fallback;
 }
 
-export default function MonthlyView() {
+// showTA: if false, filter out items where type === "grading"
+export default function MonthlyView({ showTA = true }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -89,9 +82,15 @@ export default function MonthlyView() {
     });
   }, [items]);
 
+  // Apply TA filter: when showTA is false, hide grading items
+  const filteredNormalized = useMemo(() => {
+    if (showTA) return normalized;
+    return normalized.filter(x => !(typeof x.type === "string" && x.type.toLowerCase() === "grading"));
+  }, [normalized, showTA]);
+
   const assignmentsByDate = useMemo(() => {
     const grouped = {};
-    normalized.forEach((item) => {
+    filteredNormalized.forEach((item) => {
       if (item.dueAt) {
         const dueDate = new Date(item.dueAt);
         const dateKey = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
@@ -100,7 +99,7 @@ export default function MonthlyView() {
       }
     });
     return grouped;
-  }, [normalized]);
+  }, [filteredNormalized]);
 
   const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
@@ -154,10 +153,7 @@ export default function MonthlyView() {
 
           {/* Empty leading cells */}
           {emptyDays.map((_, i) => (
-            <div key={`empty-${i}`} style={{
-              minHeight: 90, borderRadius: 8,
-              background: "transparent",
-            }} />
+            <div key={`empty-${i}`} style={{ minHeight: 90, borderRadius: 8, background: "transparent" }} />
           ))}
 
           {/* Day cells */}
@@ -183,7 +179,6 @@ export default function MonthlyView() {
                 display: "flex",
                 flexDirection: "column",
               }}>
-                {/* Day number */}
                 <div style={{
                   fontWeight: isToday ? 800 : 600,
                   marginBottom: 4,

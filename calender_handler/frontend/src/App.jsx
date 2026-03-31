@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { applyMeta, buildFlagsMap, suggestTodayPlan } from "./AI";
+import { applyMeta, buildFlagsMap, suggestTodayPlan, hoursUntilDue } from "./AI";
 import { Routes, Route, Link, useLocation } from "react-router-dom";
 import APIKeyWalkthroughView from "./Walkthrough";
 import DayView from "./DayView";
@@ -32,6 +32,15 @@ function cardStyleFor(status) {
   }
 }
 
+function badgeStyleFor(status) {
+  switch (status) {
+    case "red":    return { background: "#f5b8ae", color: "#7a1e1e", border: "1px solid #e8907f" };
+    case "yellow": return { background: "#f0d98c", color: "#6b4a00", border: "1px solid #d4b830" };
+    case "green":  return { background: "#8bbfa0", color: "#1e3a2f", border: "1px solid #5a9e78" };
+    default:       return { background: "#b0d4be", color: "#1e3a2f", border: "1px solid #8bbfa0" };
+  }
+}
+
 function formatDue(dueAt) {
   if (!dueAt) return "No due date";
   const d = new Date(dueAt);
@@ -41,6 +50,54 @@ function formatDue(dueAt) {
 
 function safeText(s, fallback = "") {
   return typeof s === "string" ? s : fallback;
+}
+
+function stressBannerStyle(level) {
+  switch (level) {
+    case "calm":     return { background: "#ddf0e2", border: "1.5px solid #8bbfa0", color: "#1e3a2f" };
+    case "light":    return { background: "#eaf5ee", border: "1.5px solid #b0d4be", color: "#1e3a2f" };
+    case "moderate": return { background: "#fdf5d0", border: "1.5px solid #f0d98c", color: "#5a4000" };
+    case "busy":     return { background: "#fde8e4", border: "1.5px solid #f5b8ae", color: "#6b1e1e" };
+    case "intense":  return { background: "#fde8e4", border: "2px solid #e07070",   color: "#6b0000" };
+    default:         return { background: "#eaf5ee", border: "1.5px solid #b0d4be", color: "#1e3a2f" };
+  }
+}
+
+function sortPlan(plan, mode) {
+  const copy = [...plan];
+  switch (mode) {
+    case "urgency": return copy;
+    case "due":
+      return copy.sort((a, b) => {
+        const ah = hoursUntilDue(a.dueAt) ?? Infinity;
+        const bh = hoursUntilDue(b.dueAt) ?? Infinity;
+        return ah - bh;
+      });
+    case "time":
+      return copy.sort((a, b) => (a.minutes ?? 0) - (b.minutes ?? 0));
+    default: return copy;
+  }
+}
+
+function PlanCard({ p }) {
+  return (
+    <div style={{
+      background: "#FFFCF7", borderRadius: 10,
+      border: "1.5px solid #A9DEF9", padding: "10px 14px",
+      animation: "fadeUp 0.3s ease forwards", opacity: 0,
+    }}>
+      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e3a2f" }}>{p.title}</div>
+      <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 2 }}>
+        ⏱ {p.minutes} min
+        {p.isPartial && p.totalEstimate && (
+          <span style={{ color: "#7a9b84" }}> (of ~{p.totalEstimate} min total)</span>
+        )}
+      </div>
+      <div style={{ fontSize: "0.78rem", color: "#7a9b84", marginTop: 3, fontStyle: "italic" }}>
+        {p.reason}
+      </div>
+    </div>
+  );
 }
 
 // ── Navbar ────────────────────────────────────────────────────────────────────
@@ -67,10 +124,7 @@ function Navbar({ showTA, setShowTA }) {
         </li>
         {setShowTA && (
           <li>
-            <button
-              onClick={() => setShowTA(s => !s)}
-              className={`toggle-btn ${showTA ? "active" : ""}`}
-            >
+            <button onClick={() => setShowTA(s => !s)} className={`toggle-btn ${showTA ? "active" : ""}`}>
               {showTA ? "🎓 TA On" : "🎓 TA Off"}
             </button>
           </li>
@@ -80,66 +134,10 @@ function Navbar({ showTA, setShowTA }) {
           <button onClick={handleSignOut} style={{
             background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)",
             color: "rgba(232,245,238,0.8)", fontSize: "0.85rem", padding: "5px 14px",
-          }}>
-            Sign Out
-          </button>
+          }}>Sign Out</button>
         </li>
       </ul>
     </nav>
-  );
-}
-
-// ── Assignment Card ───────────────────────────────────────────────────────────
-
-function AssignmentCard({ x, flags }) {
-  const status = dueStatus(x.dueAt);
-  const colors = cardStyleFor(status);
-
-  return (
-    <div className="card fade-up" style={{ ...colors, padding: "16px 20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontFamily: "'Playfair Display', Georgia, serif",
-            fontSize: "1rem", fontWeight: 700, color: "#1e3a2f",
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
-            {x.title}
-          </div>
-          <div style={{ fontSize: "0.82rem", color: "#4a6b57", marginTop: 2 }}>
-            {x.courseName}
-          </div>
-          <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 4 }}>
-            📅 {formatDue(x.dueAt)}
-          </div>
-          {flags && flags.length > 0 && (
-            <div style={{ marginTop: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
-              {flags.map((f, i) => (
-                <span key={i} style={{
-                  padding: "1px 8px", borderRadius: 999, fontSize: "0.7rem",
-                  background: "#A9DEF9", color: "#1e3a2f", border: "1px solid #39ABE9",
-                }}>
-                  {f.type.replace(/_/g, " ")}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ textAlign: "right", fontSize: "0.8rem", color: "#4a6b57", flexShrink: 0 }}>
-          {x.points !== null && (
-            <div style={{ fontWeight: 600 }}>{x.points} pts</div>
-          )}
-          {x.url ? (
-            <a className="canvas-link" href={x.url} target="_blank" rel="noreferrer"
-              style={{ display: "inline-block", marginTop: 8 }}>
-              Open ↗
-            </a>
-          ) : (
-            <span style={{ fontSize: "0.75rem", color: "#7a9b84" }}>No link</span>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -149,9 +147,8 @@ function HomeView() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
-  const [sortMode, setSortMode] = useState("due");
   const [showTA, setShowTA] = useState(false);
+  const [planSort, setPlanSort] = useState("urgency");
 
   async function load() {
     try {
@@ -159,7 +156,7 @@ function HomeView() {
       setError("");
       const apiBase = typeof __API_URL__ !== "undefined" && __API_URL__ ? __API_URL__ : "";
       const token = localStorage.getItem("authToken");
-      const res = await fetch(`${apiBase}/api/assignments?days=31`, {
+      const res = await fetch(`${apiBase}/api/assignments?days=90`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -189,107 +186,100 @@ function HomeView() {
       type: safeText(it.type, "unknown"),
       title: safeText(a.name, "Untitled"),
       dueAt,
+      description: safeText(a.description, ""),
       points: typeof a.points_possible === "number" ? a.points_possible : null,
       url: a.html_url || it.html_url || null,
-      needsGradingCount: typeof it.needs_grading_count === "number" ? it.needs_grading_count : null,
       hasSubmitted: a.has_submitted_submissions === true,
     };
   }), [items]);
 
   const assignmentsWithMeta = useMemo(() => applyMeta(normalized, {}), [normalized]);
   const flagsById = useMemo(() => buildFlagsMap(assignmentsWithMeta), [assignmentsWithMeta]);
-  const todayPlan = useMemo(() => {
-    const pool = showTA ? assignmentsWithMeta
-      : assignmentsWithMeta.filter(x => !(typeof x.type === "string" && x.type.toLowerCase() === "grading"));
-    return suggestTodayPlan(pool, 120);
+
+  const planAssignments = useMemo(() => {
+    if (showTA) return assignmentsWithMeta;
+    return assignmentsWithMeta.filter(x => x.type?.toLowerCase() !== "grading");
   }, [assignmentsWithMeta, showTA]);
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let filtered = normalized;
-    if (!showTA) filtered = filtered.filter(x => !(typeof x.type === "string" && x.type.toLowerCase() === "grading"));
-    if (q) filtered = filtered.filter(x =>
-      x.title.toLowerCase().includes(q) ||
-      x.courseName.toLowerCase().includes(q) ||
-      x.type.toLowerCase().includes(q)
-    );
-    return [...filtered].sort((a, b) => {
-      if (sortMode === "course") {
-        const c = a.courseName.localeCompare(b.courseName);
-        if (c !== 0) return c;
-      }
-      const ad = a.dueAt ? new Date(a.dueAt).getTime() : Infinity;
-      const bd = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
-      return ad - bd;
-    });
-  }, [normalized, query, sortMode, showTA]);
+  const { plan: rawPlan, stress } = useMemo(
+    () => suggestTodayPlan(planAssignments, 180),
+    [planAssignments]
+  );
+
+  const plan = useMemo(() => sortPlan(rawPlan, planSort), [rawPlan, planSort]);
 
   return (
     <div style={{ minHeight: "100vh" }}>
       <Navbar showTA={showTA} setShowTA={setShowTA} />
 
       <div style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 24px" }}>
-        {/* Page title */}
-        <div style={{ marginBottom: 28 }}>
+        <div style={{ marginBottom: 20 }}>
           <h1 style={{ fontSize: "2rem", margin: 0 }}>Your Assignments 🌸</h1>
-          <p style={{ color: "#4a6b57", marginTop: 6, fontStyle: "italic", margin: "6px 0 0" }}>
-            Here's what's coming up this month
+          <p style={{ color: "#4a6b57", fontStyle: "italic", margin: "6px 0 0" }}>
+            Here's what's coming up in the next 3 months
           </p>
         </div>
 
-        {/* Main layout: calendar left, sidebar right */}
+        {stress && (
+          <div style={{
+            ...stressBannerStyle(stress.level),
+            borderRadius: 12, padding: "12px 18px",
+            marginBottom: 24, fontSize: "0.9rem", fontWeight: 500,
+          }}>
+            {stress.message}
+          </div>
+        )}
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 24, marginBottom: 28 }}>
-          {/* Calendar */}
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             <div style={{
-              padding: "14px 20px",
-              borderBottom: "1.5px solid #b0d4be",
+              padding: "14px 20px", borderBottom: "1.5px solid #b0d4be",
               background: "linear-gradient(90deg, #ddf1fd, #eaf5ee)",
             }}>
               <span className="section-title" style={{ marginBottom: 0 }}>📅 Monthly Calendar</span>
             </div>
-            <MonthlyView />
+            <MonthlyView showTA={showTA} />
           </div>
 
-          {/* Sidebar */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {/* Streak */}
-            <div className="card" style={{
-              background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)",
-              textAlign: "center",
-            }}>
+            <div className="card" style={{ background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)", textAlign: "center" }}>
               <Streak />
             </div>
 
-            {/* AI Suggestions */}
-            <div className="card" style={{
-              background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)",
-            }}>
-              <div className="section-title">✨ Today's Plan</div>
-              {todayPlan.length === 0 ? (
+            <div className="card" style={{ background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div className="section-title" style={{ margin: 0 }}>✨ Today's Plan</div>
+              </div>
+
+              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                {[["urgency", "🔥 Urgency"], ["due", "📅 Due date"], ["time", "⏱ Time"]].map(([val, label]) => (
+                  <button
+                    key={val}
+                    onClick={() => setPlanSort(val)}
+                    style={{
+                      fontSize: "0.7rem", padding: "3px 8px", borderRadius: 999,
+                      background: planSort === val ? "#39ABE9" : "#eaf5ee",
+                      borderColor: planSort === val ? "#39ABE9" : "#b0d4be",
+                      color: planSort === val ? "white" : "#4a6b57",
+                      fontWeight: planSort === val ? 700 : 400,
+                    }}
+                  >{label}</button>
+                ))}
+              </div>
+
+              {plan.length === 0 ? (
                 <p style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic", margin: 0 }}>
-                  No suggestions right now — you're on top of it! 🌿
+                  You're all caught up! 🌸
                 </p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {todayPlan.map(p => (
-                    <div key={`${p.assignmentId}-${p.title}`} style={{
-                      background: "#FFFCF7", borderRadius: 10,
-                      border: "1.5px solid #A9DEF9", padding: "10px 14px",
-                    }}>
-                      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e3a2f" }}>{p.title}</div>
-                      <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 2 }}>
-                        ⏱ {p.minutes} min · {p.reason}
-                      </div>
-                    </div>
-                  ))}
+                  {plan.map((p, i) => <PlanCard key={i} p={p} />)}
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Error */}
         {error && (
           <div style={{
             padding: 14, borderRadius: 12, background: "#fde8e4",
@@ -298,15 +288,11 @@ function HomeView() {
             <b>Error:</b> {error}
           </div>
         )}
-
-        
       </div>
       <Footer />
     </div>
   );
 }
-
-// ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [setupComplete, setSetupComplete] = useState(
