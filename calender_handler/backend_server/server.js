@@ -17,7 +17,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ─── Encryption helpers (AES-256-GCM) ────────────────────────────────────────
+// ─── Encryption helpers ───────────────────────────────────────────────────────
 
 function encrypt(text) {
   const iv = crypto.randomBytes(12);
@@ -80,46 +80,101 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY
 );
 
-// ─── AI Plan helpers ──────────────────────────────────────────────────────────
+// ─── Canvas fetch helpers ─────────────────────────────────────────────────────
 
-function urgencyLabel(dueAt) {
-  if (!dueAt) return "no due date";
-  const h = (Date.parse(dueAt) - Date.now()) / 3600000;
-  if (!Number.isFinite(h)) return "no due date";
-  if (h < 0) return "OVERDUE";
-  if (h <= 24) return "due within 24 hours";
-  if (h <= 72) return "due within 3 days";
-  if (h <= 168) return "due within a week";
-  return `due in ${Math.round(h / 24)} days`;
+// Fetch all pages from a Canvas paginated endpoint
+async function fetchAllPages(url, canvasToken) {
+  const results = [];
+  let nextUrl = url;
+
+  while (nextUrl) {
+    const res = await fetch(nextUrl, {
+      headers: { Authorization: `Bearer ${canvasToken}` },
+    });
+    if (!res.ok) break;
+
+    const data = await res.json();
+    if (Array.isArray(data)) results.push(...data);
+
+    // Parse Link header for next page
+    const link = res.headers.get("link") || "";
+    const match = link.match(/<([^>]+)>;\s*rel="next"/);
+    nextUrl = match ? match[1] : null;
+  }
+
+  return results;
 }
 
-function buildPlanPrompt(assignments) {
-  const list = assignments
-    .filter(a => a.status !== "done")
-    .map((a, i) => {
-      const urgency = urgencyLabel(a.dueAt);
-      const desc = a.description ? `\n   Description: "${String(a.description).slice(0, 300)}"` : "";
-      return `${i + 1}. "${a.title}" (${a.courseName}) — ${urgency}${desc}`;
+// Fetch assignments from all active courses — much broader than /todo
+async function fetchAssignmentsFromCourses(baseUrl, canvasToken, days) {
+  const now = new Date();
+  const end = new Date(now);
+  end.setDate(end.getDate() + days);
+
+  // Get active courses
+  const courses = await fetchAllPages(
+    `${baseUrl}/api/v1/courses?enrollment_state=active&per_page=100`,
+    canvasToken
+  );
+
+  if (!courses.length) return [];
+
+  // Fetch assignments from each course in parallel
+  const assignmentArrays = await Promise.all(
+    courses.map(async (course) => {
+      try {
+        const assignments = await fetchAllPages(
+          `${baseUrl}/api/v1/courses/${course.id}/assignments?per_page=100&order_by=due_at&bucket=future`,
+          canvasToken
+        );
+        // Normalize to a shape similar to the old /todo format
+        return assignments
+          .filter(a => {
+            if (!a.due_at) return false;
+            const due = new Date(a.due_at);
+            return due >= now && due <= end;
+          })
+          .map(a => ({
+            type: "submitting",
+            course_id: course.id,
+            context_name: course.name || course.course_code || "Unknown course",
+            assignment: {
+              id: a.id,
+              name: a.name,
+              due_at: a.due_at,
+              points_possible: a.points_possible,
+              html_url: a.html_url,
+              description: a.description || "",
+              has_submitted_submissions: a.has_submitted_submissions,
+            },
+          }));
+      } catch {
+        return [];
+      }
     })
-    .join("\n");
+  );
 
-  return `You are a friendly academic planner. A student has these upcoming Canvas assignments:
+  // Flatten and deduplicate by assignment id
+  const seen = new Set();
+  const all = [];
+  for (const arr of assignmentArrays) {
+    for (const item of arr) {
+      const id = item.assignment?.id;
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        all.push(item);
+      }
+    }
+  }
 
-${list}
+  // Sort by due date
+  all.sort((a, b) => {
+    const da = new Date(a.assignment?.due_at || 0).getTime();
+    const db = new Date(b.assignment?.due_at || 0).getTime();
+    return da - db;
+  });
 
-Your job: create a focused "Today's Plan" — a short prioritized list of work blocks the student should do TODAY.
-
-Rules:
-- Read any description text carefully — it often says how long the assignment takes or what's involved.
-- Prioritize by urgency (overdue first, then due soon), but factor in estimated effort from descriptions.
-- Suggest 3–5 work blocks. Each block: a task name, estimated minutes, and a 1-sentence reason.
-- Be specific and encouraging. If a description says "10-minute quiz," say 10 minutes.
-- Keep each block concise. Output ONLY valid JSON — no markdown, no explanation.
-
-Format:
-[
-  { "title": "...", "minutes": 30, "reason": "..." }
-]`;
+  return all;
 }
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
@@ -257,124 +312,38 @@ app.post("/api/register", async (req, res) => {
   }
 });
 
-// ─── Assignments ──────────────────────────────────────────────────────────────
+// ─── Assignments — now fetches from all courses, not just /todo ───────────────
 
 app.get("/api/assignments", verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     if (!user || !user.encryptedToken || !user.canvasUrl) {
-      return res.status(401).json({ error: "User not found or Canvas credentials missing. Please sign in again." });
+      return res.status(401).json({ error: "User not found or Canvas credentials missing." });
     }
 
     const canvasToken = decrypt(user.encryptedToken);
     const baseUrl = user.canvasUrl;
 
     const queryDays = req.query.days ? parseInt(req.query.days, 10) : NaN;
-    const days = Number.isFinite(queryDays) ? queryDays : 31;
+    const days = Number.isFinite(queryDays) ? queryDays : 90;
 
-    const url = `${baseUrl}/api/v1/users/self/todo?per_page=10000`;
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${canvasToken}` },
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      return res.status(response.status).json({ error: "Canvas API request failed", details: text });
-    }
-
-    const data = await response.json();
-
-    const parseDue = (item) => {
-      if (!item) return null;
-      if (item.due_at) return new Date(item.due_at);
-      if (item.assignment?.due_at) return new Date(item.assignment.due_at);
-      if (item.submission?.due_at) return new Date(item.submission.due_at);
-      return null;
-    };
-
-    const now = new Date();
-    const end = new Date(now);
-    end.setDate(end.getDate() + days);
-
-    const filtered = Array.isArray(data)
-      ? data.filter((item) => { const due = parseDue(item); return due && due >= now && due <= end; })
-      : [];
-
-    res.json(filtered);
+    const assignments = await fetchAssignmentsFromCourses(baseUrl, canvasToken, days);
+    res.json(assignments);
   } catch (err) {
+    console.error("Assignments error:", err);
     res.status(500).json({ error: "Server error", details: String(err) });
   }
 });
 
-// ─── AI Plan (Gemini) ─────────────────────────────────────────────────────────
-
-app.post("/api/ai-plan", verifyToken, async (req, res) => {
-  try {
-    const { assignments } = req.body;
-
-    if (!assignments || !Array.isArray(assignments)) {
-      return res.status(400).json({ error: "assignments array required" });
-    }
-
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({ error: "GEMINI_API_KEY not configured on server" });
-    }
-
-    const prompt = buildPlanPrompt(assignments);
-
-    const aiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
-      }
-    );
-
-    if (!aiRes.ok) {
-      const text = await aiRes.text();
-      console.error("[ai-plan] Gemini error:", text);
-      return res.status(502).json({ error: "Gemini API error", details: text });
-    }
-
-    const data = await aiRes.json();
-    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-    const clean = raw.replace(/```json|```/g, "").trim();
-
-    let plan;
-    try {
-      plan = JSON.parse(clean);
-    } catch {
-      console.error("[ai-plan] Failed to parse JSON:", clean);
-      return res.status(502).json({ error: "Failed to parse AI response" });
-    }
-
-    res.json(plan);
-  } catch (err) {
-    console.error("[ai-plan] Error:", err);
-    res.status(500).json({ error: "AI plan failed", details: String(err) });
-  }
-});
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Cron helpers ─────────────────────────────────────────────────────────────
 
 async function getDueSoonForUser(canvasUrl, canvasToken) {
-  const response = await fetch(`${canvasUrl}/api/v1/users/self/todo?per_page=100`, {
-    headers: { Authorization: `Bearer ${canvasToken}` },
-  });
-  if (!response.ok) return [];
-  const data = await response.json();
-  const now = Date.now();
-  const in24h = now + 24 * 60 * 60 * 1000;
-
-  return data.filter((item) => {
-    const dueAt = item.assignment?.due_at || item.due_at;
-    if (!dueAt) return false;
-    const dueMs = new Date(dueAt).getTime();
-    return dueMs > now && dueMs <= in24h;
-  });
+  try {
+    const assignments = await fetchAssignmentsFromCourses(canvasUrl, canvasToken, 1);
+    return assignments;
+  } catch {
+    return [];
+  }
 }
 
 // ─── Cron ─────────────────────────────────────────────────────────────────────
@@ -417,7 +386,7 @@ async function runCron() {
           console.log(`[cron] Notified user ${user._id} about: ${title}`);
         } catch (err) {
           if (err.statusCode === 410) {
-            console.log("[cron] Subscription expired, clearing push subscription.");
+            console.log("[cron] Subscription expired, clearing.");
             await User.findByIdAndUpdate(user._id, { pushSubscription: null });
           } else {
             console.error("[cron] Push failed:", err.message);
@@ -430,7 +399,7 @@ async function runCron() {
   }
 }
 
-// ─── Connect to MongoDB, then start cron + server ────────────────────────────
+// ─── Connect to MongoDB, then start ──────────────────────────────────────────
 
 mongoose.connect(process.env.MONGODB_URI, {
   tls: true,

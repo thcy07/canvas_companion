@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { applyMeta, buildFlagsMap, suggestTodayPlan } from "./AI";
+import { applyMeta, buildFlagsMap, suggestTodayPlan, hoursUntilDue } from "./AI";
 import { Routes, Route, Link, useLocation } from "react-router-dom";
 import APIKeyWalkthroughView from "./Walkthrough";
 import DayView from "./DayView";
@@ -32,13 +32,6 @@ function cardStyleFor(status) {
   }
 }
 
-function formatDue(dueAt) {
-  if (!dueAt) return "No due date";
-  const d = new Date(dueAt);
-  if (Number.isNaN(d.getTime())) return "Invalid date";
-  return d.toLocaleString();
-}
-
 function safeText(s, fallback = "") {
   return typeof s === "string" ? s : fallback;
 }
@@ -52,6 +45,50 @@ function stressBannerStyle(level) {
     case "intense":  return { background: "#fde8e4", border: "2px solid #e07070",   color: "#6b0000" };
     default:         return { background: "#eaf5ee", border: "1.5px solid #b0d4be", color: "#1e3a2f" };
   }
+}
+
+// ── Plan sort ─────────────────────────────────────────────────────────────────
+
+function sortPlan(plan, mode) {
+  const copy = [...plan];
+  switch (mode) {
+    case "urgency":
+      // Already sorted by urgency from suggestTodayPlan — keep as-is
+      return copy;
+    case "due":
+      return copy.sort((a, b) => {
+        const ah = hoursUntilDue(a.dueAt) ?? Infinity;
+        const bh = hoursUntilDue(b.dueAt) ?? Infinity;
+        return ah - bh;
+      });
+    case "time":
+      return copy.sort((a, b) => (a.minutes ?? 0) - (b.minutes ?? 0));
+    default:
+      return copy;
+  }
+}
+
+// ── Plan card ─────────────────────────────────────────────────────────────────
+
+function PlanCard({ p }) {
+  return (
+    <div style={{
+      background: "#FFFCF7", borderRadius: 10,
+      border: "1.5px solid #A9DEF9", padding: "10px 14px",
+      animation: "fadeUp 0.3s ease forwards", opacity: 0,
+    }}>
+      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e3a2f" }}>{p.title}</div>
+      <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 2 }}>
+        ⏱ {p.minutes} min
+        {p.isPartial && p.totalEstimate && (
+          <span style={{ color: "#7a9b84" }}> (of ~{p.totalEstimate} min total)</span>
+        )}
+      </div>
+      <div style={{ fontSize: "0.78rem", color: "#7a9b84", marginTop: 3, fontStyle: "italic" }}>
+        {p.reason}
+      </div>
+    </div>
+  );
 }
 
 // ── Navbar ────────────────────────────────────────────────────────────────────
@@ -78,10 +115,7 @@ function Navbar({ showTA, setShowTA }) {
         </li>
         {setShowTA && (
           <li>
-            <button
-              onClick={() => setShowTA(s => !s)}
-              className={`toggle-btn ${showTA ? "active" : ""}`}
-            >
+            <button onClick={() => setShowTA(s => !s)} className={`toggle-btn ${showTA ? "active" : ""}`}>
               {showTA ? "🎓 TA On" : "🎓 TA Off"}
             </button>
           </li>
@@ -91,9 +125,7 @@ function Navbar({ showTA, setShowTA }) {
           <button onClick={handleSignOut} style={{
             background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)",
             color: "rgba(232,245,238,0.8)", fontSize: "0.85rem", padding: "5px 14px",
-          }}>
-            Sign Out
-          </button>
+          }}>Sign Out</button>
         </li>
       </ul>
     </nav>
@@ -106,9 +138,8 @@ function HomeView() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
-  const [sortMode, setSortMode] = useState("due");
   const [showTA, setShowTA] = useState(false);
+  const [planSort, setPlanSort] = useState("urgency");
 
   async function load() {
     try {
@@ -149,7 +180,6 @@ function HomeView() {
       description: safeText(a.description, ""),
       points: typeof a.points_possible === "number" ? a.points_possible : null,
       url: a.html_url || it.html_url || null,
-      needsGradingCount: typeof it.needs_grading_count === "number" ? it.needs_grading_count : null,
       hasSubmitted: a.has_submitted_submissions === true,
     };
   }), [items]);
@@ -159,42 +189,24 @@ function HomeView() {
 
   const planAssignments = useMemo(() => {
     if (showTA) return assignmentsWithMeta;
-    return assignmentsWithMeta.filter(x => !(typeof x.type === "string" && x.type.toLowerCase() === "grading"));
+    return assignmentsWithMeta.filter(x => x.type?.toLowerCase() !== "grading");
   }, [assignmentsWithMeta, showTA]);
 
-  const { plan, stress } = useMemo(
+  const { plan: rawPlan, stress } = useMemo(
     () => suggestTodayPlan(planAssignments, 180),
     [planAssignments]
   );
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let filtered = normalized;
-    if (!showTA) filtered = filtered.filter(x => !(typeof x.type === "string" && x.type.toLowerCase() === "grading"));
-    if (q) filtered = filtered.filter(x =>
-      x.title.toLowerCase().includes(q) ||
-      x.courseName.toLowerCase().includes(q) ||
-      x.type.toLowerCase().includes(q)
-    );
-    return [...filtered].sort((a, b) => {
-      if (sortMode === "course") {
-        const c = a.courseName.localeCompare(b.courseName);
-        if (c !== 0) return c;
-      }
-      const ad = a.dueAt ? new Date(a.dueAt).getTime() : Infinity;
-      const bd = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
-      return ad - bd;
-    });
-  }, [normalized, query, sortMode, showTA]);
+  const plan = useMemo(() => sortPlan(rawPlan, planSort), [rawPlan, planSort]);
 
   return (
     <div style={{ minHeight: "100vh" }}>
       <Navbar showTA={showTA} setShowTA={setShowTA} />
 
       <div style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 24px" }}>
-        <div style={{ marginBottom: 28 }}>
+        <div style={{ marginBottom: 20 }}>
           <h1 style={{ fontSize: "2rem", margin: 0 }}>Your Assignments 🌸</h1>
-          <p style={{ color: "#4a6b57", marginTop: 6, fontStyle: "italic", margin: "6px 0 0" }}>
+          <p style={{ color: "#4a6b57", fontStyle: "italic", margin: "6px 0 0" }}>
             Here's what's coming up in the next 3 months
           </p>
         </div>
@@ -214,8 +226,7 @@ function HomeView() {
           {/* Calendar */}
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             <div style={{
-              padding: "14px 20px",
-              borderBottom: "1.5px solid #b0d4be",
+              padding: "14px 20px", borderBottom: "1.5px solid #b0d4be",
               background: "linear-gradient(90deg, #ddf1fd, #eaf5ee)",
             }}>
               <span className="section-title" style={{ marginBottom: 0 }}>📅 Monthly Calendar</span>
@@ -225,43 +236,40 @@ function HomeView() {
 
           {/* Sidebar */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div className="card" style={{
-              background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)",
-              textAlign: "center",
-            }}>
+            <div className="card" style={{ background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)", textAlign: "center" }}>
               <Streak />
             </div>
 
-            {/* Rule-based plan — always works, no API needed */}
+            {/* Today's Plan */}
             <div className="card" style={{ background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)" }}>
-              <div className="section-title">✨ Today's Plan</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div className="section-title" style={{ margin: 0 }}>✨ Today's Plan</div>
+              </div>
+
+              {/* Sort controls */}
+              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                {[["urgency", "🔥 Urgency"], ["due", "📅 Due date"], ["time", "⏱ Time"]].map(([val, label]) => (
+                  <button
+                    key={val}
+                    onClick={() => setPlanSort(val)}
+                    style={{
+                      fontSize: "0.7rem", padding: "3px 8px", borderRadius: 999,
+                      background: planSort === val ? "#39ABE9" : "#eaf5ee",
+                      borderColor: planSort === val ? "#39ABE9" : "#b0d4be",
+                      color: planSort === val ? "white" : "#4a6b57",
+                      fontWeight: planSort === val ? 700 : 400,
+                    }}
+                  >{label}</button>
+                ))}
+              </div>
+
               {plan.length === 0 ? (
                 <p style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic", margin: 0 }}>
                   You're all caught up! 🌸
                 </p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {plan.map((p, i) => (
-                    <div key={i} style={{
-                      background: "#FFFCF7", borderRadius: 10,
-                      border: "1.5px solid #A9DEF9", padding: "10px 14px",
-                      animation: "fadeUp 0.3s ease forwards",
-                      animationDelay: `${i * 60}ms`, opacity: 0,
-                    }}>
-                      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e3a2f" }}>
-                        {p.title}
-                      </div>
-                      <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 2 }}>
-                        ⏱ {p.minutes} min
-                        {p.isPartial && p.totalEstimate && (
-                          <span style={{ color: "#7a9b84" }}> (of ~{p.totalEstimate} min total)</span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: "0.78rem", color: "#7a9b84", marginTop: 3, fontStyle: "italic" }}>
-                        {p.reason}
-                      </div>
-                    </div>
-                  ))}
+                  {plan.map((p, i) => <PlanCard key={i} p={p} />)}
                 </div>
               )}
             </div>
@@ -281,8 +289,6 @@ function HomeView() {
     </div>
   );
 }
-
-// ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [setupComplete, setSetupComplete] = useState(
