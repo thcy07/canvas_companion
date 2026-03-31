@@ -1,256 +1,199 @@
-// src/ai.js
-// ============================================================
-// Rule-based "AI" for Canvas assignments
-// ------------------------------------------------------------
-// Goals (v1):
-// 1) Generate FLAGS (overdue, due soon, etc.)
-// 2) Generate a simple TODAY PLAN (time blocks to work on)
-// 3) Keep everything deterministic + explainable (rule-based)
-// ============================================================
+// AIPlan.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+// Replaces the static rule-based "Today's Plan" sidebar with a Claude-powered
+// plan that reads assignment descriptions to estimate real effort.
+// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Small utility: safe parse of due date string -> ms timestamp
- * Returns null if no due date or invalid date.
- */
-export function parseDueMs(dueAt) {
+import { useEffect, useRef, useState } from "react";
+
+// ── Helpers (kept from original AI.jsx for urgency context) ───────────────────
+
+function hoursUntil(dueAt) {
   if (!dueAt) return null;
   const ms = Date.parse(dueAt);
-  return Number.isFinite(ms) ? ms : null;
+  return Number.isFinite(ms) ? (ms - Date.now()) / 3600000 : null;
 }
 
-/**
- * Compute hours until due from a dueAt string.
- * Returns null if due date missing/invalid.
- */
-export function hoursUntilDue(dueAt, nowMs = Date.now()) {
-  const dueMs = parseDueMs(dueAt);
-  if (dueMs === null) return null;
-  return (dueMs - nowMs) / (1000 * 60 * 60);
+function urgencyLabel(dueAt) {
+  const h = hoursUntil(dueAt);
+  if (h === null) return "no due date";
+  if (h < 0) return "OVERDUE";
+  if (h <= 24) return "due within 24 hours";
+  if (h <= 72) return "due within 3 days";
+  if (h <= 168) return "due within a week";
+  return `due in ${Math.round(h / 24)} days`;
 }
 
-/**
- * Apply / merge local meta (your app-owned fields) onto normalized items.
- * If you don't have meta storage yet, you can pass an empty object {}.
- *
- * metaById example:
- * {
- *   16075151: { status:"in_progress", estimatedMinutes:90, priorityHint:"high", pinned:true }
- * }
- */
-export function applyMeta(assignments, metaById = {}) {
-  return assignments.map((a) => {
-    const id = a.assignmentId;
-    const meta = (id != null && metaById[id]) ? metaById[id] : {};
+// ── Build prompt from assignments ─────────────────────────────────────────────
 
-    return {
-      ...a,
+function buildPrompt(assignments) {
+  const list = assignments
+    .filter(a => a.status !== "done")
+    .map((a, i) => {
+      const urgency = urgencyLabel(a.dueAt);
+      const desc = a.description ? `\n   Description: "${a.description.slice(0, 300)}"` : "";
+      return `${i + 1}. "${a.title}" (${a.courseName}) — ${urgency}${desc}`;
+    })
+    .join("\n");
 
-      // app-owned fields with defaults
-      status: meta.status ?? "not_started",               // not_started | in_progress | done
-      estimatedMinutes: meta.estimatedMinutes ?? null,    // number or null
-      priorityHint: meta.priorityHint ?? "normal",        // low | normal | high
-      pinned: meta.pinned ?? false,                       // boolean
-    };
+  return `You are a friendly academic planner. A student has these upcoming Canvas assignments:
+
+${list}
+
+Your job: create a focused "Today's Plan" — a short prioritized list of work blocks the student should do TODAY.
+
+Rules:
+- Read any description text carefully — it often says how long the assignment takes or what's involved.
+- Prioritize by urgency (overdue first, then due soon), but factor in estimated effort from descriptions.
+- Suggest 3–5 work blocks. Each block: a task name, estimated minutes, and a 1-sentence reason.
+- Be specific and encouraging. If a description says "10-minute quiz," say 10 minutes.
+- Keep each block concise. Output ONLY valid JSON — no markdown, no explanation.
+
+Format:
+[
+  { "title": "...", "minutes": 30, "reason": "..." },
+  ...
+]`;
+}
+
+// ── Claude API call ───────────────────────────────────────────────────────────
+
+async function fetchAIPlan(assignments) {
+  const prompt = buildPrompt(assignments);
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
+      messages: [{ role: "user", content: prompt }],
+    }),
   });
+
+  if (!response.ok) {
+    throw new Error(`API error ${response.status}`);
+  }
+
+  const data = await response.json();
+  const raw = data.content?.find(b => b.type === "text")?.text || "[]";
+
+  // Strip any accidental markdown fences
+  const clean = raw.replace(/```json|```/g, "").trim();
+  return JSON.parse(clean);
 }
 
-/**
- * Convert priorityHint into a numeric weight for sorting/planning.
- */
-export function priorityWeight(priorityHint) {
-  switch (priorityHint) {
-    case "high":
-      return 3;
-    case "low":
-      return 1;
-    default:
-      return 2; // normal
-  }
-}
+// ── AIPlan component ──────────────────────────────────────────────────────────
 
-/**
- * Compute a "risk score" used to sort what's most urgent.
- * Higher score = more urgent / should be suggested earlier.
- *
- * Pinned items always float to the top.
- */
-export function riskScore(a, nowMs = Date.now()) {
-  if (a.pinned) return 10000;
+export default function AIPlan({ assignments = [] }) {
+  const [plan, setPlan] = useState(null);       // null = not loaded yet
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const lastKey = useRef("");                    // avoid re-fetching if nothing changed
 
-  // Completed items should drop to the bottom
-  if (a.status === "done") return -10000;
+  // Derive a stable cache key from assignment ids + due dates
+  const cacheKey = assignments
+    .filter(a => a.status !== "done")
+    .map(a => `${a.assignmentId}:${a.dueAt}`)
+    .join("|");
 
-  const h = hoursUntilDue(a.dueAt, nowMs);
-
-  // No due date: low urgency, but not zero
-  if (h === null) return 50 + priorityWeight(a.priorityHint) * 10;
-
-  // Overdue: extremely high urgency
-  if (h < 0) return 9000 + priorityWeight(a.priorityHint) * 50;
-
-  // Due windows
-  if (h <= 24) return 8000 + priorityWeight(a.priorityHint) * 50;
-  if (h <= 72) return 5000 + priorityWeight(a.priorityHint) * 30;
-  if (h <= 168) return 2000 + priorityWeight(a.priorityHint) * 20; // 7 days
-
-  // Far away: mostly controlled by priority
-  return 500 + priorityWeight(a.priorityHint) * 15;
-}
-
-/**
- * FLAGS
- * ------------------------------------------------------------
- * Returns an array of flag objects:
- * [{ assignmentId, type, severity, message }]
- *
- * severity: 0 (info) | 1 (low) | 2 (medium) | 3 (high)
- */
-export function getFlags(a, nowMs = Date.now()) {
-  const flags = [];
-
-  // If complete, we usually don't flag (except optional info)
-  if (a.status === "done") return flags;
-
-  const h = hoursUntilDue(a.dueAt, nowMs);
-
-  if (h === null) {
-    flags.push({
-      assignmentId: a.assignmentId,
-      type: "NO_DUE_DATE",
-      severity: 1,
-      message: "No due date found (consider adding one manually).",
-    });
-    return flags;
-  }
-
-  if (h < 0) {
-    flags.push({
-      assignmentId: a.assignmentId,
-      type: "OVERDUE",
-      severity: 3,
-      message: `Overdue by ${Math.ceil(Math.abs(h))} hour(s).`,
-    });
-  } else if (h <= 24) {
-    flags.push({
-      assignmentId: a.assignmentId,
-      type: "DUE_SOON",
-      severity: 2,
-      message: "Due within 24 hours.",
-    });
-  } else if (h <= 72) {
-    flags.push({
-      assignmentId: a.assignmentId,
-      type: "DUE_IN_3_DAYS",
-      severity: 1,
-      message: "Due within 3 days.",
-    });
-  }
-
-  // If Canvas says submission exists, show info
-  if (a.hasSubmitted) {
-    flags.push({
-      assignmentId: a.assignmentId,
-      type: "SUBMISSION_EXISTS",
-      severity: 0,
-      message: "Canvas shows a submission exists.",
-    });
-  }
-
-  // Optional: if it's pinned, show info flag
-  if (a.pinned) {
-    flags.push({
-      assignmentId: a.assignmentId,
-      type: "PINNED",
-      severity: 0,
-      message: "Pinned by you.",
-    });
-  }
-
-  return flags;
-}
-
-/**
- * Build a map: assignmentId -> flags[]
- * This is convenient for UI rendering.
- */
-export function buildFlagsMap(assignments, nowMs = Date.now()) {
-  const map = {};
-  for (const a of assignments) {
-    const id = a.assignmentId;
-    if (id == null) continue;
-    map[id] = getFlags(a, nowMs);
-  }
-  return map;
-}
-
-/**
- * TODAY PLAN (simple v1)
- * ------------------------------------------------------------
- * Returns a list of plan blocks for today:
- * [{ assignmentId, title, minutes, reason }]
- *
- * How it works:
- * - Filter out done items
- * - Sort by riskScore (pinned/overdue/due soon)
- * - Allocate chunks until minutesAvailable is used
- */
-export function suggestTodayPlan(assignments, minutesAvailable = 120, nowMs = Date.now()) {
-  const candidates = assignments
-    .filter((a) => a.status !== "done")
-    .slice()
-    .sort((a, b) => riskScore(b, nowMs) - riskScore(a, nowMs));
-
-  const plan = [];
-  let remaining = minutesAvailable;
-
-  for (const a of candidates) {
-    if (remaining <= 0) break;
-    if (a.assignmentId == null) continue;
-
-    // Use estimate if available, else default
-    const est = typeof a.estimatedMinutes === "number" ? a.estimatedMinutes : 60;
-
-    // Chunk sizing (simple and realistic)
-    // - aim for 25–60 min blocks
-    // - if estimate is huge, still only suggest a chunk
-    const chunk = Math.min(60, Math.max(25, Math.floor(est / 2)), remaining);
-
-    const h = hoursUntilDue(a.dueAt, nowMs);
-    let reason = "Next most urgent";
-    if (a.pinned) reason = "Pinned by you";
-    else if (h !== null && h < 0) reason = "Overdue";
-    else if (h !== null && h <= 24) reason = "Due within 24 hours";
-    else if (h !== null && h <= 72) reason = "Due within 3 days";
-
-    plan.push({
-      assignmentId: a.assignmentId,
-      title: a.title,
-      minutes: chunk,
-      reason,
-    });
-
-    remaining -= chunk;
-  }
-
-  return plan;
-}
-
-export function AI({ todayPlan = [], flagsById = {} }) {
-    if (!todayPlan || todayPlan.length === 0) {
-        return <p style={{ color: "#555" }}>No AI suggestions right now.</p>;
+  async function generate() {
+    if (!assignments.length) return;
+    setLoading(true);
+    setError("");
+    try {
+      const result = await fetchAIPlan(assignments);
+      setPlan(result);
+      lastKey.current = cacheKey;
+    } catch (e) {
+      setError("Couldn't generate plan right now.");
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
+  }
 
-    return (
-        <div>
-            <h4 style={{ margin: "0 0 8px" }}>AI Suggestions</h4>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {todayPlan.map((p) => (
-                    <div key={`${p.assignmentId}-${p.title}`} style={{ padding: "8px 10px", background: "white", color: "#000", borderRadius: 8, border: "1px solid #eee", minWidth: 160 }}>
-                        <div style={{ fontWeight: 700 }}>{p.title}</div>
-                        <div style={{ fontSize: 12, color: "#555" }}>{p.minutes} min — {p.reason}</div>
-                    </div>
-                ))}
-            </div>
+  // Auto-fetch once on mount (or when assignments change significantly)
+  useEffect(() => {
+    if (cacheKey && cacheKey !== lastKey.current) {
+      generate();
+    }
+  }, [cacheKey]);
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="card" style={{ background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div className="section-title" style={{ margin: 0 }}>✨ Today's Plan</div>
+        <button
+          onClick={generate}
+          disabled={loading}
+          title="Regenerate plan"
+          style={{
+            fontSize: "0.75rem",
+            padding: "3px 12px",
+            background: loading ? "#b0d4be" : "#A9DEF9",
+            borderColor: loading ? "#b0d4be" : "#A9DEF9",
+            color: "#1e3a2f",
+          }}
+        >
+          {loading ? "⏳" : "↺ Refresh"}
+        </button>
+      </div>
+
+      {loading && !plan && (
+        <div style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic" }}>
+          🌿 Building your plan…
         </div>
-    );
+      )}
+
+      {error && !plan && (
+        <div style={{ color: "#6b1e1e", fontSize: "0.85rem" }}>{error}</div>
+      )}
+
+      {!loading && !error && !plan && assignments.length === 0 && (
+        <p style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic", margin: 0 }}>
+          No assignments found 🌿
+        </p>
+      )}
+
+      {plan && plan.length === 0 && (
+        <p style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic", margin: 0 }}>
+          You're all caught up! 🌸
+        </p>
+      )}
+
+      {plan && plan.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {plan.map((p, i) => (
+            <div key={i} style={{
+              background: "#FFFCF7",
+              borderRadius: 10,
+              border: "1.5px solid #A9DEF9",
+              padding: "10px 14px",
+              animation: "fadeUp 0.3s ease forwards",
+              animationDelay: `${i * 60}ms`,
+              opacity: 0,
+            }}>
+              <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e3a2f" }}>
+                {p.title}
+              </div>
+              <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 2 }}>
+                ⏱ {p.minutes} min
+              </div>
+              <div style={{ fontSize: "0.78rem", color: "#7a9b84", marginTop: 3, fontStyle: "italic" }}>
+                {p.reason}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div style={{ fontSize: "0.75rem", color: "#7a9b84", textAlign: "center", fontStyle: "italic" }}>
+              Refreshing…
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }

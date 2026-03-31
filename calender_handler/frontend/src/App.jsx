@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { applyMeta, buildFlagsMap, suggestTodayPlan } from "./AI";
+import { applyMeta, buildFlagsMap } from "./AI";
 import { Routes, Route, Link, useLocation } from "react-router-dom";
 import APIKeyWalkthroughView from "./Walkthrough";
 import DayView from "./DayView";
 import Footer from "./Footer";
 import Streak from "./Streak";
 import MonthlyView from "./MonthView";
+import AIPlan from "./AIPlan";
 import "./index.css";
 import Onboarding from "./Onboarding";
 
@@ -189,6 +190,8 @@ function HomeView() {
       type: safeText(it.type, "unknown"),
       title: safeText(a.name, "Untitled"),
       dueAt,
+      // Pass description through so AIPlan can use it
+      description: safeText(a.description, ""),
       points: typeof a.points_possible === "number" ? a.points_possible : null,
       url: a.html_url || it.html_url || null,
       needsGradingCount: typeof it.needs_grading_count === "number" ? it.needs_grading_count : null,
@@ -198,10 +201,11 @@ function HomeView() {
 
   const assignmentsWithMeta = useMemo(() => applyMeta(normalized, {}), [normalized]);
   const flagsById = useMemo(() => buildFlagsMap(assignmentsWithMeta), [assignmentsWithMeta]);
-  const todayPlan = useMemo(() => {
-    const pool = showTA ? assignmentsWithMeta
-      : assignmentsWithMeta.filter(x => !(typeof x.type === "string" && x.type.toLowerCase() === "grading"));
-    return suggestTodayPlan(pool, 120);
+
+  // Assignments visible to AIPlan (respects TA toggle)
+  const planAssignments = useMemo(() => {
+    if (showTA) return assignmentsWithMeta;
+    return assignmentsWithMeta.filter(x => !(typeof x.type === "string" && x.type.toLowerCase() === "grading"));
   }, [assignmentsWithMeta, showTA]);
 
   const visible = useMemo(() => {
@@ -239,7 +243,7 @@ function HomeView() {
 
         {/* Main layout: calendar left, sidebar right */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 24, marginBottom: 28 }}>
-          {/* Calendar */}
+          {/* Calendar — showTA is now passed down so grading items hide/show */}
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             <div style={{
               padding: "14px 20px",
@@ -248,7 +252,7 @@ function HomeView() {
             }}>
               <span className="section-title" style={{ marginBottom: 0 }}>📅 Monthly Calendar</span>
             </div>
-            <MonthlyView />
+            <MonthlyView showTA={showTA} />
           </div>
 
           {/* Sidebar */}
@@ -261,31 +265,8 @@ function HomeView() {
               <Streak />
             </div>
 
-            {/* AI Suggestions */}
-            <div className="card" style={{
-              background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)",
-            }}>
-              <div className="section-title">✨ Today's Plan</div>
-              {todayPlan.length === 0 ? (
-                <p style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic", margin: 0 }}>
-                  No suggestions right now — you're on top of it! 🌿
-                </p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {todayPlan.map(p => (
-                    <div key={`${p.assignmentId}-${p.title}`} style={{
-                      background: "#FFFCF7", borderRadius: 10,
-                      border: "1.5px solid #A9DEF9", padding: "10px 14px",
-                    }}>
-                      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#1e3a2f" }}>{p.title}</div>
-                      <div style={{ fontSize: "0.8rem", color: "#4a6b57", marginTop: 2 }}>
-                        ⏱ {p.minutes} min · {p.reason}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* AI-powered plan — passes real assignments with descriptions */}
+            <AIPlan assignments={planAssignments} />
           </div>
         </div>
 
@@ -298,8 +279,6 @@ function HomeView() {
             <b>Error:</b> {error}
           </div>
         )}
-
-        
       </div>
       <Footer />
     </div>
