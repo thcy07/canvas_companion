@@ -369,7 +369,7 @@ async function runCron() {
       const canvasToken = decrypt(user.encryptedToken);
       const dueSoon = await getDueSoonForUser(user.canvasUrl, canvasToken);
       // Only notify for student assignments, not TA grading tasks
-      const studentOnly = dueSoon.filter(i => i.type !== "grading");
+      const studentOnly = dueSoon.filter(i => i.type !== "grading" && !i.assignment?.has_submitted_submissions);
       if (!studentOnly.length) continue;
 
       for (const item of studentOnly) {
