@@ -196,6 +196,35 @@ app.get("/api/vapid-public-key", (req, res) => {
   res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
 });
 
+// ─── Get Canvas Name ──────────────────────────────────────────────────────────
+app.get("/api/canvas-name", verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user || !user.encryptedToken || !user.canvasUrl) {
+      return res.status(401).json({ error: "Credentials missing" });
+    }
+
+    const canvasToken = decrypt(user.encryptedToken);
+    const baseUrl = user.canvasUrl;
+
+    const response = await fetch(`${baseUrl}/api/v1/users/self`, {
+      headers: { Authorization: `Bearer ${canvasToken}` },
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: "Canvas API error" });
+    }
+
+    const data = await response.json();
+    
+    res.json({ canvasName: data.short_name || data.name });
+    
+  } catch (err) {
+    console.error("Canvas Name Error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // ─── Auth: Sign Up ────────────────────────────────────────────────────────────
 
 app.post("/api/auth/signup", async (req, res) => {

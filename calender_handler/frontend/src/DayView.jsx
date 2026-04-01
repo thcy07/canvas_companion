@@ -427,7 +427,7 @@ export default function DayView() {
           <div style={{ flex: 1 }}>
             <h1 style={{ margin: 0, fontSize: "1.8rem" }}>📖 Week View</h1>
             <p style={{ margin: "4px 0 0", color: "#fff", fontStyle: "italic", fontSize: "0.9rem" }}>
-              {dateLabel} — {new Date(weekEnd.getTime() - 1).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              {dateLabel} — {new Date(windowEnd.getTime() - 1).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </p>
           </div>
 
@@ -517,8 +517,8 @@ export default function DayView() {
                   🗓 {dayKey}
                   <span style={{
                     fontSize: "0.75rem", fontFamily: "'Lora', Georgia, serif",
-                    fontWeight: 400, background: "#A9DEF9",
-                    borderRadius: 999, padding: "1px 10px", color: "#1e3a2f",
+                    fontWeight: 400, background: "#C0573E",
+                    borderRadius: 999, padding: "1px 10px", color: "#fff",
                   }}>
                     {grouped[dayKey].length} due
                   </span>
@@ -583,10 +583,10 @@ export default function DayView() {
               <Streak />
             </div>
 
-            <div className="card" style={{ background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)" }}>
+            <div className="card" style={{  }}>
               <div style={{ marginBottom: 10 }}>
                 <div className="section-title" style={{ margin: "0 0 4px" }}>📋 {planLabel}</div>
-                <div style={{ fontSize: "0.75rem", color: "#7a9b84", fontStyle: "italic" }}>
+                <div style={{ fontSize: "0.75rem", color: "#4a6b57", fontStyle: "italic" }}>
                   Based on {windowDays === 7 ? "this week's" : windowDays === 14 ? "the next 14 days'" : "the next 30 days'"} assignments
                 </div>
               </div>

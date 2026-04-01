@@ -113,7 +113,7 @@ function Navbar({ showTA, setShowTA }) {
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
-   const [canvasName, setCanvasName] = useState("");
+  const [canvasName, setCanvasName] = useState("");
 
   useEffect(() => {
     getCanvasName().then(name => setCanvasName(name));
@@ -271,11 +271,6 @@ function HomeView() {
               backgroundColor: "#D8D2A3"
             }}>
               <div className="section-title">🐢 Today's Plan</div>
-              {todayPlan.length === 0 ? (
-            <div className="card" style={{ background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <div className="section-title" style={{ margin: 0 }}>🐢 Today's Plan</div>
-              </div>
 
               <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
                 {[["urgency", "🔥 Urgency"], ["due", "📅 Due date"], ["time", "⏱ Time"]].map(([val, label]) => (
@@ -303,8 +298,8 @@ function HomeView() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
+            </div>
+         
 
         {error && (
           <div style={{
@@ -315,11 +310,12 @@ function HomeView() {
           </div>
         )}
       </div>
+      </div>
       <Footer />
+    
     </div>
   );
 }
-
 export default function App() {
   const [setupComplete, setSetupComplete] = useState(
     () => localStorage.getItem("setupComplete") === "true"

@@ -80,7 +80,7 @@ function CardShell({ children }: { children: React.ReactNode }) {
       }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 48, marginBottom: 8 }}></div>
-          <img className = "turtle" src="images/Canvas_Companion_Logo.png" alt="Canvas Companion Logo"></img>
+          <img className = "turtle" src="/images/Canvas_Companion_Logo.png" alt="Canvas Companion Logo"></img>
           <h1 style={{
             margin: 0, fontSize: 28, fontWeight: 800,
             color: "#2d6a4f", fontFamily: "Georgia, serif",
