@@ -8,6 +8,7 @@ import Streak from "./Streak";
 import MonthlyView from "./MonthView";
 import "./index.css";
 import Onboarding from "./Onboarding";
+import { getCanvasName } from "./utils/getCanvasName";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -112,9 +113,16 @@ function Navbar({ showTA, setShowTA }) {
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
+   const [canvasName, setCanvasName] = useState("");
+
+  useEffect(() => {
+    getCanvasName().then(name => setCanvasName(name));
+  }, []);
+
   return (
     <nav className="navbar">
-      <Link to="/" className="nav-logo">Canvas Companion</Link>
+      <div class="logoTurtle"><img class="turtle" src="/images/Canvas_Companion_Logo.png" alt="Canvas Companion Logo" /></div>
+      <p className="status">Welcome back, {canvasName}</p>
       <ul className="nav-links">
         <li className={`nav-link ${location.pathname === "/" ? "active" : ""}`}>
           <Link to="/">Home</Link>
@@ -129,7 +137,7 @@ function Navbar({ showTA, setShowTA }) {
             </button>
           </li>
         )}
-        <li className="status">Welcome back 🌿</li>
+        
         <li>
           <button onClick={handleSignOut} style={{
             background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)",
@@ -213,11 +221,18 @@ function HomeView() {
       <Navbar showTA={showTA} setShowTA={setShowTA} />
 
       <div style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 24px" }}>
+        {/* Page title */}
         <div style={{ marginBottom: 20 }}>
-          <h1 style={{ fontSize: "2rem", margin: 0 }}>Your Assignments 🌸</h1>
-          <p style={{ color: "#4a6b57", fontStyle: "italic", margin: "6px 0 0" }}>
-            Here's what's coming up in the next 3 months
+          <div class="descriptionsAndSlogan">
+            <div>
+          <h1 style={{ fontSize: "2rem", margin: 0 }}>Your Assignments</h1>
+
+          <p style={{ color: "#fff", marginTop: 6, fontStyle: "italic", margin: "6px 0 0" }}>
+            Here's what's coming up this month
           </p>
+          </div>
+          <img class="slogan" src="images/slogan.png" alt="Slow and Study Wins the Race"></img>
+        </div>
         </div>
 
         {stress && (
@@ -233,22 +248,33 @@ function HomeView() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 24, marginBottom: 28 }}>
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             <div style={{
-              padding: "14px 20px", borderBottom: "1.5px solid #b0d4be",
-              background: "linear-gradient(90deg, #ddf1fd, #eaf5ee)",
+              padding: "14px 20px",
+              borderBottom: "1.5px solid #D8D2A3",
+              backgroundImage: "url(images/turtle_pattern.png)",
             }}>
-              <span className="section-title" style={{ marginBottom: 0 }}>📅 Monthly Calendar</span>
+              <span className="section-title" style={{ marginBottom: 0, color: "#fff", fontSize: "26px", textShadow: "2px 2px 5px rgba(0, 0, 0, 0.5)"}}>📅 Monthly Calendar</span>
             </div>
             <MonthlyView showTA={showTA} />
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div className="card" style={{ background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)", textAlign: "center" }}>
+            {/* Streak */}
+            <div className="card" style={{
+              backgroundImage: "url(images/turtle_pattern.png)",
+              textAlign: "center",
+            }}>
               <Streak />
             </div>
 
+            {/* AI Suggestions */}
+            <div className="card" style={{
+              backgroundColor: "#D8D2A3"
+            }}>
+              <div className="section-title">🐢 Today's Plan</div>
+              {todayPlan.length === 0 ? (
             <div className="card" style={{ background: "linear-gradient(135deg, #ddf1fd, #eaf5ee)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <div className="section-title" style={{ margin: 0 }}>✨ Today's Plan</div>
+                <div className="section-title" style={{ margin: 0 }}>🐢 Today's Plan</div>
               </div>
 
               <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
@@ -269,7 +295,7 @@ function HomeView() {
 
               {plan.length === 0 ? (
                 <p style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic", margin: 0 }}>
-                  You're all caught up! 🌸
+                  No suggestions right now — you're on top of it!
                 </p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

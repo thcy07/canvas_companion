@@ -7,20 +7,20 @@ export default function Streak() {
     <div style={{ padding: "8px 4px" }}>
       <div style={{
         fontFamily: "'Playfair Display', Georgia, serif",
-        fontSize: "1.1rem", fontWeight: 700, color: "#4e6b4a",
+        fontSize: "1.5rem", fontWeight: 800, color: "#fff",
         marginBottom: 8, display: "flex", alignItems: "center", gap: 6,
-        justifyContent: "center",
+        justifyContent: "center", textShadow: "2px 2px 5px rgba(0, 0, 0, 0.5)",
       }}>
         🔥 Streak
       </div>
       <div style={{
         fontSize: "3rem", fontWeight: 800,
         fontFamily: "'Playfair Display', Georgia, serif",
-        color: "#7d9b76", lineHeight: 1,
+        color: "yellow", lineHeight: 1, textShadow: "2px 2px 5px rgba(0, 0, 0, 0.5)"
       }}>
         {streakCount}
       </div>
-      <div style={{ fontSize: "0.8rem", color: "#7a5c4a", marginTop: 6, fontStyle: "italic" }}>
+      <div style={{ fontSize: "1 rem", color: "#fff", marginTop: 6, fontStyle: "italic" , textShadow: "2px 2px 5px rgba(0, 0, 0, 0.5)"}}>
         days with a completed task
       </div>
     </div>

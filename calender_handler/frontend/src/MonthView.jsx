@@ -18,7 +18,7 @@ function cardStyleFor(status) {
     case "red":    return { background: "#fde8e4", border: "1px solid #f5b8ae" };
     case "yellow": return { background: "#fdf5d0", border: "1px solid #f0d98c" };
     case "green":  return { background: "#ddf0e2", border: "1px solid #8bbfa0" };
-    default:       return { background: "#eaf5ee", border: "1px solid #b0d4be" };
+    default:       return { background: "#D8D2A3", border: "1px solid #b0d4be" };
   }
 }
 
@@ -115,7 +115,7 @@ export default function MonthlyView({ showTA = true }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <button
           onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))}
-          style={{ padding: "6px 14px", borderRadius: 999, border: "1.5px solid #b0d4be", background: "#eaf5ee", cursor: "pointer", fontFamily: "inherit" }}
+          style={{ padding: "6px 14px", borderRadius: 999, border: "1.5px solid #b0d4be", background: "#C0573E", cursor: "pointer", fontFamily: "inherit" }}
         >
           ← Prev
         </button>
@@ -124,7 +124,7 @@ export default function MonthlyView({ showTA = true }) {
         </h2>
         <button
           onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))}
-          style={{ padding: "6px 14px", borderRadius: 999, border: "1.5px solid #b0d4be", background: "#eaf5ee", cursor: "pointer", fontFamily: "inherit" }}
+          style={{ padding: "6px 14px", borderRadius: 999, border: "1.5px solid #b0d4be", background: "#C0573E", cursor: "pointer", fontFamily: "inherit" }}
         >
           Next →
         </button>

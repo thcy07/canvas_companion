@@ -65,12 +65,12 @@ function CardShell({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "linear-gradient(135deg, #B9D8C2 0%, #A9DEF9 100%)",
+      backgroundColor: "#6A9915",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontFamily: "Georgia, serif", padding: "24px",
     }}>
       <div style={{
-        background: "#FFFCF7",
+        background: "#D8D2A3",
         borderRadius: 20,
         padding: "48px 40px",
         maxWidth: 480,
@@ -79,14 +79,14 @@ function CardShell({ children }: { children: React.ReactNode }) {
         border: "1.5px solid #A9DEF9",
       }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ fontSize: 48, marginBottom: 8 }}>🌿</div>
+          <div style={{ fontSize: 48, marginBottom: 8 }}></div>
+          <img className = "turtle" src="images/Canvas_Companion_Logo.png" alt="Canvas Companion Logo"></img>
           <h1 style={{
             margin: 0, fontSize: 28, fontWeight: 800,
             color: "#2d6a4f", fontFamily: "Georgia, serif",
           }}>
-            Canvas Companion
           </h1>
-          <p style={{ margin: "8px 0 0", color: "#4a6b57", fontSize: 14, fontStyle: "italic" }}>
+          <p style={{ margin: "8px 0 0", color: "#4a6b57", fontSize: 17, fontStyle: "italic" }}>
             Stay on top of your assignments
           </p>
         </div>
@@ -298,7 +298,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     return (
       <CardShell>
         <h2 style={{ margin: "0 0 6px", fontSize: 22, color: "#1e3a2f", fontFamily: "Georgia, serif" }}>Create Account</h2>
-        <p style={{ margin: "0 0 24px", fontSize: 13, color: "#7a9b84" }}>Step 1 of 2 — Account details</p>
+        <p style={{ margin: "0 0 24px", fontSize: 13, color: "#4a6b57" }}>Step 1 of 2 — Account details</p>
         <ErrorBox msg={errorMsg} />
         <div style={fieldStyle}>
           <label style={labelStyle}>Email</label>
@@ -337,7 +337,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     return (
       <CardShell>
         <h2 style={{ margin: "0 0 6px", fontSize: 22, color: "#1e3a2f", fontFamily: "Georgia, serif" }}>Connect Canvas</h2>
-        <p style={{ margin: "0 0 24px", fontSize: 13, color: "#7a9b84" }}>Step 2 of 2 — Canvas credentials</p>
+        <p style={{ margin: "0 0 24px", fontSize: 13, color: "#4a6b57" }}>Step 2 of 2 — Canvas credentials</p>
         <ErrorBox msg={errorMsg} />
         <div style={fieldStyle}>
           <label style={labelStyle}>Your Canvas URL</label>
@@ -345,7 +345,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             placeholder="https://canvas.youruniversity.edu" style={inputStyle}
             onFocus={(e) => (e.target.style.borderColor = "#2d6a4f")}
             onBlur={(e) => (e.target.style.borderColor = "#A9DEF9")} />
-          <p style={{ margin: "5px 0 0", fontSize: 12, color: "#7a9b84" }}>Example: https://canvas.byu.edu</p>
+          <p style={{ margin: "5px 0 0", fontSize: 12, color: "#4a6b57" }}>Example: https://canvas.byu.edu</p>
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>Canvas API Token</label>
@@ -358,7 +358,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           <summary style={{ fontSize: 13, color: "#2d6a4f", cursor: "pointer", userSelect: "none" }}>
             How do I get my Canvas API token?
           </summary>
-          <ol style={{ fontSize: 13, color: "#4a6b57", paddingLeft: 20, marginTop: 8, lineHeight: 1.7 }}>
+          <ol style={{ fontSize: 16, color: "#4a6b57", paddingLeft: 20, marginTop: 8, lineHeight: 1.7 }}>
             <li>Log in to Canvas</li>
             <li>Go to <b>Account → Settings</b></li>
             <li>Scroll to <b>Approved Integrations</b></li>

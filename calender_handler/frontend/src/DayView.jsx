@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { applyMeta, buildFlagsMap, suggestTodayPlan, hoursUntilDue, analyzeWeekStress } from "./AI";
 import Streak from "./Streak";
 import Footer from "./Footer";
+import { getCanvasName } from "./utils/getCanvasName";
 
 function dueStatus(dueAt) {
   if (!dueAt) return "nodate";
@@ -265,6 +266,14 @@ export default function DayView() {
 
   useEffect(() => { load(); }, []);
 
+    const todayStr = new Date().toISOString().slice(0, 10);
+  
+     const [canvasName, setCanvasName] = useState("");
+  
+    useEffect(() => {
+      getCanvasName().then(name => setCanvasName(name));
+    }, []);
+
   const normalized = useMemo(() => items.map((it) => {
     const a = it.assignment || {};
     const dueAt = a.due_at || it.due_at || (it.submission && it.submission.due_at) || null;
@@ -372,27 +381,41 @@ export default function DayView() {
     window.location.href = "/";
   }
 
+  
+
   return (
     <div style={{ minHeight: "100vh" }}>
       <nav className="navbar">
-        <Link to="/" className="nav-logo">Canvas Companion</Link>
-        <ul className="nav-links">
-          <li className="nav-link"><Link to="/">Home</Link></li>
-          <li className="nav-link active"><a>Day View</a></li>
+      <div class="logoTurtle"><img class="turtle" src="/images/Canvas_Companion_Logo.png" alt="Canvas Companion Logo" /></div>
+      <p className="status">Welcome back, {canvasName}</p>
+      <ul className="nav-links">
+        <li className={`nav-link ${location.pathname === "/" ? "active" : ""}`}>
+          <Link to="/">Home</Link>
+        </li>
+        <li className={`nav-link ${location.pathname.startsWith("/day") ? "active" : ""}`}>
+          <Link to={`/day/${todayStr}`}>Day View</Link>
+        </li>
+        {setShowTA && (
           <li>
-            <button onClick={() => setShowTA(s => !s)} className={`toggle-btn ${showTA ? "active" : ""}`}>
+            <button
+              onClick={() => setShowTA(s => !s)}
+              className={`toggle-btn ${showTA ? "active" : ""}`}
+            >
               {showTA ? "🎓 TA On" : "🎓 TA Off"}
             </button>
           </li>
-          <li className="status">Welcome back 🌿</li>
-          <li>
-            <button onClick={handleSignOut} style={{
-              background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)",
-              color: "rgba(232,245,238,0.8)", fontSize: "0.85rem", padding: "5px 14px",
-            }}>Sign Out</button>
-          </li>
-        </ul>
-      </nav>
+        )}
+        
+        <li>
+          <button onClick={handleSignOut} style={{
+            background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)",
+            color: "rgba(232,245,238,0.8)", fontSize: "0.85rem", padding: "5px 14px",
+          }}>
+            Sign Out
+          </button>
+        </li>
+      </ul>
+    </nav>
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 24px" }}>
 
@@ -402,9 +425,9 @@ export default function DayView() {
           </Link>
 
           <div style={{ flex: 1 }}>
-            <h1 style={{ margin: 0, fontSize: "1.8rem" }}>📖 {planLabel}</h1>
-            <p style={{ margin: "4px 0 0", color: "#4a6b57", fontStyle: "italic", fontSize: "0.9rem" }}>
-              {dateLabel} — {new Date(windowEnd.getTime() - 1).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            <h1 style={{ margin: 0, fontSize: "1.8rem" }}>📖 Week View</h1>
+            <p style={{ margin: "4px 0 0", color: "#fff", fontStyle: "italic", fontSize: "0.9rem" }}>
+              {dateLabel} — {new Date(weekEnd.getTime() - 1).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </p>
           </div>
 
@@ -441,7 +464,6 @@ export default function DayView() {
 
         <div className="filter-bar">
           <button onClick={load} disabled={loading} style={{
-            background: loading ? "#b0d4be" : "#bde0fe",
             borderColor: loading ? "#b0d4be" : "#bde0fe",
             color: "#1e3a2f", fontWeight: 600,
           }}>
@@ -458,7 +480,7 @@ export default function DayView() {
             <option value="due">Sort: Due date</option>
             <option value="course">Sort: Course</option>
           </select>
-          <span style={{ fontSize: "0.85rem", color: "#4a6b57", fontStyle: "italic", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: "1.2rem", color: "#fff", fontStyle: "italic", whiteSpace: "nowrap", textShadow: "2px 2px 5px rgba(0,0,0,1)" }}>
             {filtered.length} item{filtered.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -472,7 +494,7 @@ export default function DayView() {
             )}
             {loading && (
               <div style={{ textAlign: "center", padding: 40, color: "#4a6b57", fontStyle: "italic" }}>
-                🌿 Loading assignments…
+               Loading assignments…
               </div>
             )}
             {!loading && !error && dayKeys.length === 0 && (
@@ -557,7 +579,7 @@ export default function DayView() {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div className="card" style={{ background: "linear-gradient(135deg, #ddf0e2, #eaf5ee)", textAlign: "center" }}>
+            <div className="card" style={{backgroundImage: "url(/images/turtle_pattern.png)", textAlign: "center" }}>
               <Streak />
             </div>
 
@@ -583,7 +605,7 @@ export default function DayView() {
 
               {plan.length === 0 ? (
                 <p style={{ color: "#4a6b57", fontSize: "0.9rem", fontStyle: "italic" }}>
-                  Nothing due in this window 🌿
+                  Nothing due in this window
                 </p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
