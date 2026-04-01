@@ -1,8 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Lora:ital,wght@0,400;0,500;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=Arimo:ital,wght@0,400..700;1,400..700&family=Bitter:ital,wght@0,100..900;1,100..900&family=Josefin+Sans:ital,wght@0,100..700;1,100..700&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Playwrite+NZ+Basic:wght@100..400&display=swap');
 
 :root {
   /* New palette */
-  --bg: #B9D8C2;
+  --bg: #6A9915;
   /* main background - sage mint */
   --bg-dark: #a0c4ae;
   /* slightly darker bg */
@@ -14,7 +14,7 @@
   /* very pale blue tint */
 
   /* Card backgrounds - soft, not white */
-  --card-bg: #eaf5ee;
+  --card-bg: #D8D2A3;
   /* soft mint card */
   --white: #FFFCF7;
   /* warm off-white */
@@ -32,12 +32,14 @@
   --border-light: #b0d4be;
 
   /* Navbar */
-  --nav-bg: #2d6a4f;
+  --nav-bg: #C0573E;
   --nav-text: #e8f5ee;
 
-  font-family: 'Lora', Georgia, serif;
+  font-family: "Bitter", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-style: normal;
   line-height: 1.6;
-  font-weight: 400;
   color: var(--text);
   background-color: var(--bg);
   font-synthesis: none;
@@ -64,7 +66,8 @@ h1,
 h2,
 h3,
 h4 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: "Bitter", sans-serif;
+  font-weight: 700;
   color: var(--text);
   margin: 0 0 0.5em;
 }
@@ -80,14 +83,14 @@ a:hover {
 }
 
 button {
-  font-family: 'Lora', Georgia, serif;
+  font-family: 'Lora', "Bitter", sans-serif;
   font-size: 0.9rem;
   font-weight: 500;
   border-radius: 999px;
   border: 1.5px solid var(--border);
   padding: 0.5em 1.2em;
-  background: var(--card-bg);
-  color: var(--text);
+  background: #C0573E;
+  color: #D8D2A3;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -98,9 +101,24 @@ button:hover {
   color: white;
 }
 
+.descriptionsAndSlogan {
+  display: flex;
+  align-content: center;
+  
+  
+}
+.slogan {
+  width: 200px;
+  justify-content: flex-end;
+  border-radius: 5px;
+  margin-left: auto;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  margin-right: 20px;
+  
+}
 input,
 select {
-  font-family: 'Lora', Georgia, serif;
+  font-family: 'Lora', "Bitter", sans-serif;
   font-size: 0.95rem;
   color: var(--text);
   background: var(--card-bg);
@@ -125,27 +143,32 @@ select:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 60px;
+  height: 120px;
   box-shadow: 0 3px 16px rgba(30, 58, 47, 0.2);
   position: sticky;
   top: 0;
   z-index: 100;
 }
 
+.logoTurtle {
+  
+ 
+}
+.turtle {
+  width: 200px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  
+}
 .nav-logo {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 1.4rem;
+  font-family: 'Playfair Display', Georgia, sans-serif;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--nav-text) !important;
   letter-spacing: -0.02em;
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.nav-logo::before {
-  content: '🌿';
-  font-size: 1.1rem;
 }
 
 .nav-links {
@@ -159,9 +182,11 @@ select:focus {
 
 .nav-link a,
 a.nav-link {
-  font-family: 'Lora', Georgia, serif;
-  font-size: 0.9rem;
-  color: rgba(232, 245, 238, 0.8);
+  font-family: "Bitter", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-style: normal;
+  color: #fff;
   padding: 6px 16px;
   border-radius: 999px;
   border: 1.5px solid transparent;
@@ -184,11 +209,12 @@ a.nav-link {
 }
 
 .status {
-  font-size: 0.85rem;
-  color: rgba(232, 245, 238, 0.6);
+  font-size: 1rem;
+  color: #fff;
   font-style: italic;
   padding: 0 8px;
   list-style: none;
+  
 }
 
 /* ── Cards ── */
@@ -208,14 +234,16 @@ a.nav-link {
 
 /* ── Section headers ── */
 .section-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: "Bitter", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-style: normal;
   font-size: 1.1rem;
-  color: var(--text);
+  color: var(#fff);
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 14px;
-  font-weight: 700;
 }
 
 /* ── Toggle button ── */
@@ -268,7 +296,7 @@ a.nav-link {
   align-items: center;
   margin-bottom: 20px;
   padding: 14px 20px;
-  background: var(--card-bg);
+  background-image: url(/images/turtle_pattern.png);
   border-radius: 14px;
   border: 1.5px solid var(--border-light);
   box-shadow: 0 2px 10px rgba(30, 58, 47, 0.06);
@@ -282,7 +310,7 @@ footer {
   color: var(--text-muted);
   font-size: 0.85rem;
   margin-top: 3rem;
-  background: var(--bg-dark);
+  background-color: #D8D2A3;
 }
 
 .footer-links {
