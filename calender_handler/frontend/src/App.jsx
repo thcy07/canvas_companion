@@ -231,7 +231,7 @@ function HomeView() {
             Here's what's coming up this month
           </p>
           </div>
-          <img class="slogan" src="images/slogan.png" alt="Slow and Study Wins the Race"></img>
+          <img class="slogan" src="/images/slogan.png" alt="Slow and Study Wins the Race"></img>
         </div>
         </div>
 
@@ -250,7 +250,7 @@ function HomeView() {
             <div style={{
               padding: "14px 20px",
               borderBottom: "1.5px solid #D8D2A3",
-              backgroundImage: "url(images/turtle_pattern.png)",
+              backgroundImage: "url(/images/turtle_pattern.png)",
             }}>
               <span className="section-title" style={{ marginBottom: 0, color: "#fff", fontSize: "26px", textShadow: "2px 2px 5px rgba(0, 0, 0, 0.5)"}}>📅 Monthly Calendar</span>
             </div>
@@ -260,7 +260,7 @@ function HomeView() {
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {/* Streak */}
             <div className="card" style={{
-              backgroundImage: "url(images/turtle_pattern.png)",
+              backgroundImage: "url(/images/turtle_pattern.png)",
               textAlign: "center",
             }}>
               <Streak />
